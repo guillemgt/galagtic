@@ -7,18 +7,28 @@
 //
 
 #import "TheController.h"
-#include "../code/Engine/engine.hpp"
-#include "../code/Engine/window.hpp"
-#include "../code/Engine/opengl.hpp"
+#include "../code/basecode/basecode.hpp"
+#include "../code/basecode/window.hpp"
+#include "../code/basecode/opengl.hpp"
 #include "../code/main.hpp"
+#include "../code/menu.hpp"
 
-extern Vec2i windowSize;
+extern Vec2i window_size;
 extern f32 TIME_STEP;
 Angle screen_tilt_angle;
+Vec2 touch_point;
+
+void ios_do_small_haptic_feedback(){
+    UISelectionFeedbackGenerator *generator = [[UISelectionFeedbackGenerator alloc] init];
+    [generator prepare];
+    [generator selectionChanged];
+    generator = nil;
+}
 
 @interface TheController ()
 
 @property (strong, nonatomic) EAGLContext *context;
+-(void)generateFeedback:(u8)type;
 
 @end
 
@@ -30,16 +40,56 @@ StaticArray<Event, MAX_EVENTS_PER_LOOP> events(0);
 
 @implementation TheController
 
--(void) observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
-    static float last_volume = 0.f;
-    if ([keyPath isEqual:@"outputVolume"]) {
-        float volume = [[MPMusicPlayerController applicationMusicPlayer] volume];
-        if(volume > last_volume){
-            keys[KEYS_UP] = true;
-        }else if(volume < last_volume){
-            keys[KEYS_UP] = false;
-        }
-        last_volume = volume;
+-(void)generateFeedback:(u8)type{
+    if ([[UIDevice currentDevice] systemVersion].floatValue < 10.0){
+        return;
+    }
+    printf("Hey %i\n", type);
+    switch(type){
+        case 0: {
+            UISelectionFeedbackGenerator *generator = [[UISelectionFeedbackGenerator alloc] init];
+            [generator prepare];
+            [generator selectionChanged];
+            generator = nil;
+        } break;
+        case 1: {
+            UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+            [generator prepare];
+            [generator impactOccurred];
+            generator = nil;
+        } break;
+        case 2: {
+            UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
+            [generator prepare];
+            [generator impactOccurred];
+            generator = nil;
+        } break;
+        case 3: {
+            UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleHeavy];
+            [generator prepare];
+            [generator impactOccurred];
+            generator = nil;
+        } break;
+        case 4: {
+            UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];
+            [generator prepare];
+            [generator notificationOccurred:UINotificationFeedbackTypeSuccess];
+            generator = nil;
+        } break;
+        case 5: {
+            UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];
+            [generator prepare];
+            [generator notificationOccurred:UINotificationFeedbackTypeWarning];
+            generator = nil;
+        } break;
+        case 6: {
+            UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];
+            [generator prepare];
+            [generator notificationOccurred:UINotificationFeedbackTypeError];
+            generator = nil;
+        } break;
+        default:
+            break;
     }
 }
 
@@ -62,12 +112,12 @@ StaticArray<Event, MAX_EVENTS_PER_LOOP> events(0);
     [view bindDrawable];
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &defaultFBO);
     
-    windowSize.x = 2*width;
-    windowSize.y = 2*height;
+    window_size.x = 2*width;
+    window_size.y = 2*height;
     TIME_STEP = 1.f/30.f;
     
-    initEngine();
-    initGame();
+    init_basecode();
+    init_game();
     
     events.size = 0;
 }
@@ -115,8 +165,8 @@ StaticArray<Event, MAX_EVENTS_PER_LOOP> events(0);
 
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect {
     //[self centralManagerDidUpdateState:self.manager];
-    gameLogic(keys, events);
-    gameDraw();
+    game_loop(keys, events);
+    game_draw();
     //glClearColor(0, 1, 0, 1);
     //glClear(GL_COLOR_BUFFER_BIT);
 }
@@ -130,20 +180,32 @@ StaticArray<Event, MAX_EVENTS_PER_LOOP> events(0);
 }
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
+    
     float height = [[UIScreen mainScreen] bounds].size.height;
     for(UITouch *touch in touches){
         CGPoint point = [touch locationInView:[self view]];
         point.x /= height;
         point.y /= height;
         if(point.y >= 0.78){
+            bool hit = false;
             if(point.x < 0.23){
                 keys[KEYS_LEFT] = true;
+                hit = true;
             }else if(point.x < 0.44){
                 keys[KEYS_RIGHT] = true;
+                hit = true;
             }else if(point.x > 0.78){
                 keys[KEYS_SPACE] = true;
+                hit = true;
+            }
+            if(game_mode == GAME_MODE_PLAY && hit){
+                UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+                [generator prepare];
+                [generator impactOccurred];
+                generator = nil;
             }
         }
+        touch_point = Vec2(point.x, point.y);
     }
 }
 
@@ -156,6 +218,7 @@ StaticArray<Event, MAX_EVENTS_PER_LOOP> events(0);
         CGPoint previous_point = [touch previousLocationInView:[self view]];
         previous_point.x /= height;
         previous_point.y /= height;
+        bool kl = keys[KEYS_LEFT], kr = keys[KEYS_RIGHT], ks = keys[KEYS_SPACE];
         if(previous_point.y >= 0.78){
             if(previous_point.x < 0.23){
                 keys[KEYS_LEFT] = false;
@@ -174,6 +237,21 @@ StaticArray<Event, MAX_EVENTS_PER_LOOP> events(0);
                 keys[KEYS_SPACE] = true;
             }
         }
+        if(game_mode == GAME_MODE_PLAY){
+            if((kl && !keys[KEYS_LEFT]) || (kr && !keys[KEYS_RIGHT]) || (ks && !keys[KEYS_SPACE])){
+                UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+                [generator prepare];
+                [generator impactOccurred];
+                generator = nil;
+            }
+            if((!kl && keys[KEYS_LEFT]) || (!kr && keys[KEYS_RIGHT]) || (!ks && keys[KEYS_SPACE])){
+                UISelectionFeedbackGenerator *generator = [[UISelectionFeedbackGenerator alloc] init];
+                [generator prepare];
+                [generator selectionChanged];
+                generator = nil;
+            }
+        }
+        touch_point = Vec2(point.x, point.y);
     }
 }
 
@@ -184,14 +262,27 @@ StaticArray<Event, MAX_EVENTS_PER_LOOP> events(0);
         previous_point.x /= height;
         previous_point.y /= height;
         if(previous_point.y >= 0.78){
+            bool hit = false;
             if(previous_point.x < 0.23){
                 keys[KEYS_LEFT] = false;
+                hit = true;
             }else if(previous_point.x < 0.44){
                 keys[KEYS_RIGHT] = false;
+                hit = true;
             }else if(previous_point.x > 0.78){
                 keys[KEYS_SPACE] = false;
+                hit = true;
+            }
+            if(game_mode == GAME_MODE_PLAY && hit){
+                UISelectionFeedbackGenerator *generator = [[UISelectionFeedbackGenerator alloc] init];
+                [generator prepare];
+                [generator selectionChanged];
+                generator = nil;
             }
         }
+        if(game_mode == GAME_MODE_MENU)
+            select_menu_option();
+        touch_point = Vec2(-1.f, -1.f);
     }
 }
 

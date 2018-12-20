@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en-us">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <title>The Lag Game</title>
+    <style>
+        @font-face {
+            font-family: Cinzel;
+            src: url(cinzel.ttf);
+        }
+        html{
+            background: black;
+        }
+        .emscripten {
+            padding-right: 0;
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
+        }
+
+        textarea.emscripten {
+            font-family: monospace;
+            width: 80%;
+        }
+
+        div.emscripten {
+            text-align: center;
+        }
+
+        div.emscripten_border {
+            border: 1px solid black;
+        }
+        /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+
+        canvas.emscripten {
+            border: 0px none;
+            background-color: black;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            margin: auto;
+        }
+
+        .spinner {
+            height: 50px;
+            width: 50px;
+            margin: 0px auto;
+            -webkit-animation: rotation .8s linear infinite;
+            -moz-animation: rotation .8s linear infinite;
+            -o-animation: rotation .8s linear infinite;
+            animation: rotation 0.8s linear infinite;
+            border-left: 10px solid rgb(0, 150, 240);
+            border-right: 10px solid rgb(0, 150, 240);
+            border-bottom: 10px solid rgb(0, 150, 240);
+            border-top: 10px solid rgb(100, 0, 200);
+            border-radius: 100%;
+            background-color: rgb(200, 100, 250);
+        }
+        
+        #menu {
+            z-index: 10;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            font-size: 20px;
+            font-family: Arial, Helvetica, sans-serif;
+            display: none;
+            transform: translate(-50%, -50%);
+            border-radius: 5px;
+            background: white;
+            padding: 50px;
+            color: #999;
+            min-width: 60%;
+        }
+        #file-chooser {
+            color: white;
+            background: #AAA;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-block;
+        }
+        #close-menu {
+            color: white;
+            background: #999;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-block;
+            float: right;
+            margin-top: -45px;
+            margin-right: -45px;
+            font-size: 18px;
+        }
+        #useless {
+            display: none;
+        }
+        .title{
+            font-family: Cinzel, Arial, Helvetica, sans-serif;
+            font-size: 40px;
+            color: #666;
+            margin: -20px 0px 30px -10px;
+            display: inline-block;
+        }
+
+        @-webkit-keyframes rotation {
+            from {
+                -webkit-transform: rotate(0deg);
+            }
+            to {
+                -webkit-transform: rotate(360deg);
+            }
+        }
+
+        @-moz-keyframes rotation {
+            from {
+                -moz-transform: rotate(0deg);
+            }
+            to {
+                -moz-transform: rotate(360deg);
+            }
+        }
+
+        @-o-keyframes rotation {
+            from {
+                -o-transform: rotate(0deg);
+            }
+            to {
+                -o-transform: rotate(360deg);
+            }
+        }
+
+        @keyframes rotation {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        /* Custom checkbox:   https://www.w3schools.com/howto/howto_css_custom_checkbox.asp */
+        /* Customize the label (the container) */
+        .container {
+          display: block;
+          position: relative;
+          padding-left: 35px;
+          margin-bottom: 12px;
+          cursor: pointer;
+          font-size: 22px;
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
+          user-select: none;
+        }
+
+        /* Hide the browser's default checkbox */
+        .container input {
+          position: absolute;
+          opacity: 0;
+          cursor: pointer;
+        }
+
+        /* Create a custom checkbox */
+        .checkmark {
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 25px;
+          width: 25px;
+          background-color: #eee;
+        }
+
+        /* On mouse-over, add a grey background color */
+        .container:hover input ~ .checkmark {
+          background-color: #ccc;
+        }
+
+        /* When the checkbox is checked, add a blue background */
+        .container input:checked ~ .checkmark {
+          background-color: #21C356;
+        }
+
+        /* Create the checkmark/indicator (hidden when not checked) */
+        .checkmark:after {
+          content: "";
+          position: absolute;
+          display: none;
+        }
+
+        /* Show the checkmark when checked */
+        .container input:checked ~ .checkmark:after {
+          display: block;
+        }
+
+        /* Style the checkmark/indicator */
+        .container .checkmark:after {
+          left: 9px;
+          top: 5px;
+          width: 5px;
+          height: 10px;
+          border: solid white;
+          border-width: 0 3px 3px 0;
+          -webkit-transform: rotate(45deg);
+          -ms-transform: rotate(45deg);
+          transform: rotate(45deg);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="emscripten" id="status">Downloading...</div>
+    <div class="emscripten">
+        <progress value="0" max="100" id="progress" hidden=1></progress>
+    </div>
+    <div class="emscripten_border">
+        <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    </div>
+    <div id="useless">
+        <input type="file" id="file-input"/>
+    </div>
+    <div id="menu">
+        <div id="close-menu">Close</div>
+        <span class="title">The Lag Game</span><br/>
+        <label class="container"> Footstep sounds
+            <input type="checkbox" checked="checked" id="footstep-sounds">
+            <span class="checkmark"></span>
+        </label><br/>
+        <div id="file-chooser">Upload an image</div> and find it in the gallery
+    </div>
+    <!-- Module.requestFullscreen(document.getElementById('pointerLock').checked,
+ document.getElementById('resize').checked) -->
+    <script type='text/javascript'>
+        var statusElement = document.getElementById('status');
+        var progressElement = document.getElementById('progress');
+        var spinnerElement = document.getElementById('spinner');
+        var Module = {
+            preRun: [],
+            postRun: [],
+            print: (function() {
+                var element = document.getElementById('output');
+                if (element) element.value = ''; // clear browser cache
+                return function(text) {
+                    if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+                    // These replacements are necessary if you render to raw HTML
+                    //text = text.replace(/&/g, "&amp;");
+                    //text = text.replace(/</g, "&lt;");
+                    //text = text.replace(/>/g, "&gt;");
+                    //text = text.replace('\n', '<br>', 'g');
+                    console.log(text);
+                };
+            })(),
+            printErr: function(text) {
+                if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+                if (0) { // XXX disabled for safety typeof dump == 'function') {
+                    dump(text + '\n'); // fast, straight to the real console
+                } else {
+                    console.error(text);
+                }
+            },
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+                // application robust, you may want to override this behavior before shipping!
+                // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+                canvas.addEventListener("webglcontextlost", function(e) {
+                    alert('WebGL context lost. You will need to reload the page.');
+                    e.preventDefault();
+                }, false);
+                return canvas;
+            })(),
+            setStatus: function(text) {
+                if (!Module.setStatus.last) Module.setStatus.last = {
+                    time: Date.now(),
+                    text: ''
+                };
+                if (text === Module.setStatus.text) return;
+                var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+                var now = Date.now();
+                if (m && now - Date.now() < 30) return; // if this is a progress update, skip it if too soon
+                if (m) {
+                    text = m[1];
+                    progressElement.value = parseInt(m[2]) * 100;
+                    progressElement.max = parseInt(m[4]) * 100;
+                    progressElement.hidden = false;
+                    spinnerElement.hidden = false;
+                } else {
+                    progressElement.value = null;
+                    progressElement.max = null;
+                    progressElement.hidden = true;
+                    if (!text) spinnerElement.hidden = true;
+                }
+                statusElement.innerHTML = text;
+            },
+            totalDependencies: 0,
+            monitorRunDependencies: function(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+            }
+        };
+        Module.setStatus('Downloading...');
+        var canvas = Module.canvas;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        canvas.requestPointerLock = canvas.requestPointerLock ||
+                            canvas.mozRequestPointerLock;
+        canvas.onclick = function(){
+            canvas.requestPointerLock();
+        }
+        function lock_change_alert(){
+            if(document.pointerLockElement === canvas || document.mozPointerLockElement === canvas){
+                
+            }else{
+                Module.ccall('c_open_menu', null, [], []);
+            }
+        }
+        document.addEventListener('pointerlockchange', lock_change_alert, false);
+        document.addEventListener('mozpointerlockchange', lock_change_alert, false);
+        window.onerror = function() {
+            Module.setStatus('Exception thrown, see JavaScript console');
+            spinnerElement.style.display = 'none';
+            Module.setStatus = function(text) {
+                if (text) Module.printErr('[post-exception status] ' + text);
+            };
+        };
+        window.onresize = function() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            Module.ccall('jsResizeWindow', 'void', ['number', 'number'], [canvas.width, canvas.height]);
+        };
+    </script>
+    <script>
+    var input = document.getElementById("file-input");
+    var useless_div = document.getElementById("useless");
+    var file_chooser = document.getElementById('file-chooser');
+    var menu = document.getElementById('menu');
+
+    file_chooser.addEventListener('click', function(){
+        input.click();
+    });
+    function handle_image(e){
+        var reader = new FileReader();
+        reader.onload = function(event){
+            var canvas = document.createElement('canvas');
+            useless_div.appendChild(canvas);
+            canvas.width  = 256;
+            canvas.height = 256;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = "rgb(1,1,1)";
+            ctx.fillRect(0, 0, 256, 256);
+            var img = new Image();
+            img.onload = function(){
+                var w, h;
+                if(img.width > img.height){
+                    w = 256;
+                    h = parseInt(256*img.height/img.width);
+                }else{
+                    w = parseInt(256*img.width/img.height);
+                    h = 256;
+                }
+                ctx.drawImage(img, (256-w)/2, (256-h)/2, w, h);
+
+                var data = ctx.getImageData(0, 0, 256, 256).data;
+
+                Module.ccall('find_image', null, ['array', 'number', 'number'], [data, 4, 0]);
+                Module.ccall('c_close_menu', null, [], []);
+
+                canvas.parentNode.removeChild(canvas);
+            }
+            img.src = event.target.result;
+        }
+        reader.readAsDataURL(e.target.files[0]);
+        menu.style.display = "none";  
+    }
+    input.addEventListener("change", handle_image, false);
+        
+    document.getElementById("close-menu").onclick = function(){
+        Module.ccall('c_close_menu', null, [], []);
+        canvas.requestPointerLock();
+    }
+    
+    var footstep_sounds = document.getElementById("footstep-sounds");
+    footstep_sounds.onchange = function(){
+        var val = this.checked;
+        Module.ccall('set_option', null, ['number', 'number'], [0, val]);
+    }
+    </script>
+    <script async type="text/javascript" src="play.js"></script>
+</body>
+
+</html>

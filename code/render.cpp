@@ -12,8 +12,13 @@ struct {
 
 struct {
     GLuint id;
-    GLuint position, tex_coords, matrix, sampler;
+    GLuint position, tex_coords, matrix, sampler, color_multiplier;
 } pt_program;
+
+struct {
+    GLuint id;
+    GLuint position, tex_coords, matrix, sampler0, sampler1, t, color_multiplier;
+} ptt_program;
 
 struct {
     GLuint id;
@@ -92,6 +97,19 @@ void init_openGL(){
     pt_program.tex_coords = glGetAttribLocation (pt_program.id, "a_tex_coords");
     pt_program.matrix     = glGetUniformLocation(pt_program.id, "u_matrix");
     pt_program.sampler    = glGetUniformLocation(pt_program.id, "u_sampler");
+    pt_program.color_multiplier = glGetUniformLocation(pt_program.id, "u_color_multiplier");
+    
+    const char ptt_shader[] =
+#include "Shaders/ptt_shader.glsl"
+    ;
+    ptt_program.id = load_shaders_by_text(ptt_shader);
+    ptt_program.position   = glGetAttribLocation (ptt_program.id, "a_position");
+    ptt_program.tex_coords = glGetAttribLocation (ptt_program.id, "a_tex_coords");
+    ptt_program.matrix     = glGetUniformLocation(ptt_program.id, "u_matrix");
+    ptt_program.sampler0   = glGetUniformLocation(ptt_program.id, "u_sampler0");
+    ptt_program.sampler1   = glGetUniformLocation(ptt_program.id, "u_sampler1");
+    ptt_program.t          = glGetUniformLocation(ptt_program.id, "u_t");
+    ptt_program.color_multiplier = glGetUniformLocation(ptt_program.id, "u_color_multiplier");
     
     const char pta_shader[] =
 #include "Shaders/pta_shader.glsl"
@@ -195,11 +213,11 @@ void init_openGL(){
     
     glGenVertexArrays(1, &noise_vao);
     glBindVertexArray(noise_vao);
-    glEnableVertexAttribArray(pt_program.position);
-    glEnableVertexAttribArray(pt_program.tex_coords);
+    glEnableVertexAttribArray(ptt_program.position);
+    glEnableVertexAttribArray(ptt_program.tex_coords);
     glBindBuffer(GL_ARRAY_BUFFER, noise_buffer.buffer);
-    glVertexAttribPointer(pt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)0);
-    glVertexAttribPointer(pt_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)(sizeof(Vec3)));
+    glVertexAttribPointer(ptt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PN), (void *)0);
+    glVertexAttribPointer(ptt_program.tex_coords, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PN), (void *)(sizeof(Vec3)));
     check_openGL_error();
     
     glGenVertexArrays(1, &text_vao);
@@ -260,6 +278,13 @@ void init_openGL(){
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     
+    GLuint noise_texture_2;
+    glActiveTexture(GL_TEXTURE3);
+    glGenTextures(1, &noise_texture_2);
+    glBindTexture(GL_TEXTURE_2D, noise_texture_2);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    
     change_window_size();
     
     load_level_into_buffer(&level_buffer, &noise_buffer);
@@ -314,7 +339,7 @@ void print_render_time(){
 #define check_openGL_error()
 #endif
 
-void draw_scene(bool update_level){
+void draw_scene(){
     start_time();
     load_player_into_buffer(&player_buffer); // This must be first, because it sets rendered_player
     load_particles_into_buffer(&particle_buffer);
@@ -323,7 +348,7 @@ void draw_scene(bool update_level){
         load_level_into_buffer(&level_buffer, &noise_buffer);
         load_level_into_buffer(&level_moving_buffer, nullptr);
         load_changing_level_into_buffer(&level_changing_buffer);
-    }else if(update_level){
+    }else if(should_update_level){
         load_changing_level_into_buffer(&level_changing_buffer);
     }
     
@@ -352,18 +377,85 @@ void draw_scene(bool update_level){
     Mat4 ui_matrix = get_translation_matrix(Vec3(-1.f, -1.f, 0.f)) * get_scale_matrix(2.f, 2.f/actual_screen_ratio, 1.f);
     
     {
+        const int texture_size = 32;
         const float freq = 4.f/60.f;
         static float time = 0.f;
-        time += TIME_STEP;
-        if(time > freq){
-            GLubyte image_data[3*16*16];
-            for(int i=0; i<3*16*16; ){
-                u8 r = rand()%25;
-                image_data[i++] = level_color.r+r;
-                image_data[i++] = level_color.g+r;
-                image_data[i++] = level_color.b+r;
+        time += TIME_STEP/4.f;
+        if(time > 0.f){
+            static u8 rands[5][texture_size][texture_size];
+            static bool fice = true;
+            if(fice){
+                for(int d=1, dc=0; dc<=5; d*=2, dc++){
+                    int s = texture_size/d;
+                    for(int i=0; i<s; i++){
+                        for(int j=0; j<s; j++){
+                            rands[dc][i][j] = rand()%8;
+                        }
+                    }
+                }
+                fice = false;
             }
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 16, 16, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data);
+            /*for(int t=0; t<1; t++){
+             for(int d=1, dc=0; d<=4; d*=2, dc++){
+             int s = texture_size/d;
+             int i = rand()%s;
+             int j = rand()%s;
+             rands[dc][i][j] = rand()%10;
+             }
+             }*/
+            
+            GLubyte image_data[3*texture_size*texture_size];
+            for(int k=0, kc=0; k<3*texture_size*texture_size; kc++){
+                int i = kc/texture_size;
+                int j = kc%texture_size;
+                u8 r = rands[0][i][j] + rands[1][i/2][j/2] + rands[2][i/4][j/4] + rands[3][i/8][j/8] + rands[4][i/16][j/16];
+                image_data[k++] = level_color.r+r;
+                image_data[k++] = level_color.g+r;
+                image_data[k++] = level_color.b+r;
+            }
+            glActiveTexture(GL_TEXTURE1);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_size, texture_size, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data);
+            time -= freq;
+        }
+    }{
+        const int texture_size = 32;
+        const float freq = 4.f/60.f;
+        static float time = 0.f;
+        time += TIME_STEP/4.f;
+        if(time > 0.f){
+            static u8 rands[5][texture_size][texture_size];
+            static bool fice = true;
+            if(fice){
+                for(int d=1, dc=0; dc<=5; d*=2, dc++){
+                    int s = texture_size/d;
+                    for(int i=0; i<s; i++){
+                        for(int j=0; j<s; j++){
+                            rands[dc][i][j] = rand()%8;
+                        }
+                    }
+                }
+                fice = false;
+            }
+            /*for(int t=0; t<1; t++){
+             for(int d=1, dc=0; d<=4; d*=2, dc++){
+             int s = texture_size/d;
+             int i = rand()%s;
+             int j = rand()%s;
+             rands[dc][i][j] = rand()%10;
+             }
+             }*/
+            
+            GLubyte image_data[3*texture_size*texture_size];
+            for(int k=0, kc=0; k<3*texture_size*texture_size; kc++){
+                int i = kc/texture_size;
+                int j = kc%texture_size;
+                u8 r = rands[0][i][j] + rands[1][i/2][j/2] + rands[2][i/4][j/4] + rands[3][i/8][j/8] + rands[4][i/16][j/16];
+                image_data[k++] = level_color.r+r;
+                image_data[k++] = level_color.g+r;
+                image_data[k++] = level_color.b+r;
+            }
+            glActiveTexture(GL_TEXTURE3);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_size, texture_size, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data);
             time -= freq;
         }
     }
@@ -373,15 +465,23 @@ void draw_scene(bool update_level){
     glClearColor(basic_color.r/255.f, basic_color.g/255.f, basic_color.b/255.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    glUseProgram(pt_program.id);
-    glUniformMatrix4fv(pt_program.matrix, 1, GL_FALSE, &final_matrix.values[0][0]);
+    glUseProgram(ptt_program.id);
+    glUniformMatrix4fv(ptt_program.matrix, 1, GL_FALSE, &final_matrix.values[0][0]);
+    float t = 1.f;//-0.4f*MAX(MIN(rendered_player.cancel_next_level_in, 1.f), 0);
+    glUniform3f(ptt_program.color_multiplier, 1.f, t, t);
     
     if(noise_buffer.count > 0){
-        glUniform1i(pt_program.sampler, 1);
+        glUniform1i(ptt_program.sampler0, 1);
+        glUniform1i(ptt_program.sampler1, 3);
+        glUniform1f(ptt_program.t, rendered_player.time);
         glBindVertexArray(noise_vao);
         glDrawArrays(GL_TRIANGLES, 0, noise_buffer.count);
         check_openGL_error();
     }
+    
+    glUseProgram(pt_program.id);
+    glUniformMatrix4fv(pt_program.matrix, 1, GL_FALSE, &final_matrix.values[0][0]);
+    glUniform3f(pt_program.color_multiplier, 1.f, t, t);
     
     if(player_buffer.count > 0){
         glUniform1i(pt_program.sampler, 0);
@@ -430,7 +530,7 @@ void draw_scene(bool update_level){
     }
     
     if(level_moving_buffer.count > 0){
-        Mat4 matrix = final_matrix * get_translation_matrix(Vec3(0.f, level_moving_y, 0.f));
+        Mat4 matrix = final_matrix * get_translation_matrix(Vec3(0.f, rendered_player.level_moving_y, 0.f));
         glUniformMatrix4fv(pca_program.matrix, 1, GL_FALSE, &matrix.values[0][0]);
         glBindVertexArray(level_moving_vao);
         glDrawArrays(GL_TRIANGLES, 0, level_moving_buffer.count);
@@ -460,7 +560,7 @@ void draw_scene(bool update_level){
         }
         vert_num += text_vert_num(loading_level_string);
         
-        float time = player.time;
+        float time = player.shown_time;
         
         String time_string;
         time_string.allocator = &temporary_storage.allocator;
@@ -483,10 +583,10 @@ void draw_scene(bool update_level){
         String lives_string;
         lives_string.allocator = &temporary_storage.allocator;
         char lives_sc[30];
-        if(rendered_player.lives >= 0)
-            sprintf(lives_sc, "   x%i", rendered_player.lives);
+        if(player.lives >= 0)
+            sprintf(lives_sc, "   x%i", player.lives);
         else
-            sprintf(lives_sc, "   x(%i)", rendered_player.lives);
+            sprintf(lives_sc, "   x(%i)", player.lives);
         lives_string = lives_sc;
         vert_num += text_vert_num(lives_string);
         
@@ -576,7 +676,7 @@ void draw_scene(bool update_level){
             }
         }
         buttons_buffer.count = ArrayCount(o_vertices);
-        setVectorDynamicBuffer(buttons_buffer.buffer, o_vertices, buttons_buffer.count);
+        set_buffer_data_dynamic(buttons_buffer.buffer, o_vertices, buttons_buffer.count);
         
         glUseProgram(pca_program.id);
         glUniformMatrix4fv(pca_program.matrix, 1, GL_FALSE, &ui_matrix.values[0][0]);

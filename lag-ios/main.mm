@@ -1,12 +1,14 @@
 #include "main.hpp"
 
-#include "../code/Engine/engine.hpp"
+#include "../code/basecode/basecode.hpp"
 
 #include "../code/main.cpp"
 
+NSString* applicationSupportDirectory();
+
 // ios functions
 
-OsFile openGameFile(const char *name, const char *mode){
+OsFile open_game_file(const char *name, const char *mode){
     NSString* full_file_name = [NSString stringWithUTF8String:name];
     NSString* file_name = [[full_file_name lastPathComponent] stringByDeletingPathExtension];
     NSString* extension = [full_file_name pathExtension];
@@ -14,20 +16,20 @@ OsFile openGameFile(const char *name, const char *mode){
     FILE *fp = fopen([path UTF8String], mode);
     return fp;
 }
-/*OsFile openUserFile(const char *name, const char *mode){
+OsFile open_user_file(const char *name, const char *mode){
     NSString *path = [[applicationSupportDirectory() stringByAppendingString:@"/"] stringByAppendingString:[NSString stringWithUTF8String:name]];
     FILE *fp = fopen([path UTF8String], mode);
     return fp;
-}*/
-
-OsFile openGameFile(String name, const char *mode){
-    return openGameFile((char *)name.text, mode);
 }
-/*OsFile openUserFile(String name, const char *mode){
-    return openUserFile((char *)name.text, mode);
-}*/
 
-void getGameFilePath(const char *name, char *dst){
+OsFile open_game_file(String name, const char *mode){
+    return open_game_file((char *)name.text, mode);
+}
+OsFile open_user_file(String name, const char *mode){
+    return open_user_file((char *)name.text, mode);
+}
+
+void get_game_file_path(const char *name, char *dst){
     //const char *path = [[[NSBundle mainBundle] resourcePath] UTF8String];
     //sprintf(dst, "%s/%s", path, name);
     
@@ -42,19 +44,19 @@ void getGameFilePath(const char *name, char *dst){
     sprintf(dst, "%s/%s", path, name);
 }*/
 
-void readFile(void *dest, unsigned int size, unsigned int amount, OsFile fp){
+void read_file(void *dest, unsigned int size, unsigned int amount, OsFile fp){
     fread(dest, size, amount, fp);
 }
-void writeFile(void *dest, unsigned int size, unsigned int amount, OsFile fp){
+void write_file(void *dest, unsigned int size, unsigned int amount, OsFile fp){
     fwrite(dest, size, amount, fp);
 }
-void closeFile(OsFile fp){
+void close_file(OsFile fp){
     fclose(fp);
 }
 
 // Directories
 // https://www.cocoawithlove.com/2010/05/finding-or-creating-application-support.html
-NSString* findOrCreateDirectory(NSSearchPathDirectory searchPathDirectory, NSSearchPathDomainMask domainMask, NSString* appendComponent, NSError **errorOut){
+NSString* find_or_create_directory(NSSearchPathDirectory searchPathDirectory, NSSearchPathDomainMask domainMask, NSString* appendComponent, NSError **errorOut){
     // Search for the path
     NSArray* paths = NSSearchPathForDirectoriesInDomains(
                                                          searchPathDirectory,
@@ -103,7 +105,7 @@ NSString* applicationSupportDirectory(){
     NSString *executableName =
     [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleExecutable"];
     NSError *error;
-    NSString *result = findOrCreateDirectory(NSApplicationSupportDirectory, NSUserDomainMask, executableName, &error);
+    NSString *result = find_or_create_directory(NSApplicationSupportDirectory, NSUserDomainMask, executableName, &error);
     if (error)
     {
         NSLog(@"Unable to find or create application support directory:\n%@", error);
@@ -111,7 +113,7 @@ NSString* applicationSupportDirectory(){
     return result;
 }
 
-void createUserDirectory(const char *name){
+void create_user_directory(const char *name){
     NSString *path = [[applicationSupportDirectory() stringByAppendingString:@"/"] stringByAppendingString:[NSString stringWithUTF8String:name]];
     NSError *error;
     [[NSFileManager defaultManager]

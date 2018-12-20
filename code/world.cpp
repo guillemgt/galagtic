@@ -7,7 +7,7 @@
 
 int level_width;
 int level_height;
-u8  block_info[256];
+u16 block_info[256];
 Vec2 goal_position;
 
 const char pre_level_txt[] =
@@ -114,6 +114,9 @@ void load_world(){
         }else if(level_layouts[l][x][y] == 'k'){
             level_layouts[l][x][y] = ' ';
             level_enemies[l].push(Vec2(x+0.5f, y+0.5f));
+        }else if(level_layouts[l][x][y] == 'c'){
+            level_layouts[l][x][y] = ' ';
+            level_platforms[l].push(Vec2(x+0.5f, y+0.5f));
         }
         x++;
         if(pre_level_txt[i+1] == '\n'){
@@ -134,26 +137,31 @@ void load_world(){
         }
     }*/
     
-    block_info[' '] = BLOCK_IS_TRANSPARENT;
-    block_info['#'] = BLOCK_IS_SOLID;
-    block_info['^'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT;
-    block_info['v'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT;
-    block_info['>'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT;
-    block_info['<'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT;
-    block_info['U'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['D'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['R'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['L'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['x'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
-    block_info['y'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
-    block_info['z'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
-    block_info['w'] = BLOCK_IS_HARMFUL | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
-    block_info['*'] = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT;
-    block_info['+'] = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['%'] = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT;
-    block_info['a'] = BLOCK_IS_TRANSPARENT;
-    block_info['b'] = BLOCK_IS_SOLID;
-    block_info['.'] = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info[' ']  = BLOCK_IS_TRANSPARENT;
+    block_info['#']  = BLOCK_IS_SOLID;
+    block_info['^']  = BLOCK_IS_HARMFUL_UP    | BLOCK_IS_TRANSPARENT;
+    block_info['v']  = BLOCK_IS_HARMFUL_DOWN  | BLOCK_IS_TRANSPARENT;
+    block_info['>']  = BLOCK_IS_HARMFUL_RIGHT | BLOCK_IS_TRANSPARENT;
+    block_info['<']  = BLOCK_IS_HARMFUL_LEFT  | BLOCK_IS_TRANSPARENT;
+    block_info['/']  = BLOCK_IS_HARMFUL_UP    | BLOCK_IS_HARMFUL_RIGHT | BLOCK_IS_TRANSPARENT;
+    block_info['\\'] = BLOCK_IS_HARMFUL_UP    | BLOCK_IS_HARMFUL_LEFT  | BLOCK_IS_TRANSPARENT;
+    block_info['7']  = BLOCK_IS_HARMFUL_DOWN  | BLOCK_IS_HARMFUL_LEFT  | BLOCK_IS_TRANSPARENT;
+    block_info['1']  = BLOCK_IS_HARMFUL_DOWN  | BLOCK_IS_HARMFUL_RIGHT | BLOCK_IS_TRANSPARENT;
+    block_info['U']  = BLOCK_IS_HARMFUL_UP    | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['D']  = BLOCK_IS_HARMFUL_DOWN  | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['R']  = BLOCK_IS_HARMFUL_RIGHT | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['L']  = BLOCK_IS_HARMFUL_LEFT  | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['x']  = BLOCK_IS_HARMFUL_UP    | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
+    block_info['y']  = BLOCK_IS_HARMFUL_DOWN  | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
+    block_info['z']  = BLOCK_IS_HARMFUL_RIGHT | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
+    block_info['w']  = BLOCK_IS_HARMFUL_LEFT  | BLOCK_IS_TRANSPARENT | BLOCK_IS_RANDOM;
+    block_info['*']  = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT;
+    block_info['+']  = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['%']  = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT;
+    block_info['a']  = BLOCK_IS_TRANSPARENT;
+    block_info['b']  = BLOCK_IS_TRANSPARENT | BLOCK_IS_SOLID | BLOCK_IS_HARMFUL_CENTER;
+    block_info['.']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['-']  = BLOCK_IS_TRANSPARENT | BLOCK_STOPS_PLATFORMS;
 }
 
 void load_level(int num){
@@ -182,7 +190,7 @@ void load_level(int num){
     player.jump_height = -1.f;
     player.cancel_next_level_in = -1.f;
     should_update_level = true;
-    level_moving_y = 0.f;
+    player.level_moving_y = 0.f;
     level_state = 0;
     level_size = Vec2(level_width, level_height-2.f);
     
@@ -199,6 +207,15 @@ void load_level(int num){
     enemies.size = level_enemies[num].size;
     for(int i=0; i<enemies.size; i++)
         enemies[i] = level_enemies[num][i];
+    
+    platforms.size = level_platforms[num].size;
+    for(int i=0; i<platforms.size; i++)
+        platforms[i] = {level_platforms[num][i], Vec2(2.f, 2.5f), Vec2(1.f, 0.f)};
+}
+
+
+float some_rand(float x, float y){
+    return 1.f+0.5f*(sin(54376.f*x)+cos(87343.f*y));
 }
 
 void load_level_into_buffer(BufferAndCount *buffer, BufferAndCount *t_buffer){
@@ -212,6 +229,8 @@ void load_level_into_buffer(BufferAndCount *buffer, BufferAndCount *t_buffer){
                 t_vertex_count += 6;
             if(c == '#')
                 vertex_count += 6;
+            else if(c == '/' || c == '\\' || c == '7' || c == '1')
+                vertex_count += 18;
             else if(block_info[c] & BLOCK_IS_HARMFUL)
                 vertex_count += 9;
             //else if((c == '*' || c == '%') && !player.completed_level)
@@ -319,6 +338,122 @@ void load_level_into_buffer(BufferAndCount *buffer, BufferAndCount *t_buffer){
                     *(vertices++) = {Vec3(fx+r2,  fy+5.f/6.f, 0.f), color};
                     *(vertices++) = {Vec3(fx+1.f, fy+6.f/6.f, 0.f), color};
                 } break;
+                case '/': {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.25f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.25f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+0.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f/6.f, fy+r0,  0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+3.f/6.f, fy+r1,  0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+5.f/6.f, fy+r2,  0.f), color};
+                    *(vertices++) = {Vec3(fx+6.f/6.f, fy+0.f, 0.f), color};
+                } {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.25f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.25f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+0.f, fy+0.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r0,  fy+1.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r1,  fy+3.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r2,  fy+5.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+6.f/6.f, 0.f), color};
+                } break;
+                case '\\': {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.25f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.25f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+0.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f/6.f, fy+r0,  0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+3.f/6.f, fy+r1,  0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+0.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+5.f/6.f, fy+r2,  0.f), color};
+                    *(vertices++) = {Vec3(fx+6.f/6.f, fy+0.f, 0.f), color};
+                } {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.5f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.5f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+1.f, fy+0.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r0,  fy+1.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r1,  fy+3.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r2,  fy+5.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+6.f/6.f, 0.f), color};
+                } break;
+                case '1': {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.5f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.5f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+0.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f/6.f, fy+r0,  0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+3.f/6.f, fy+r1,  0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+5.f/6.f, fy+r2,  0.f), color};
+                    *(vertices++) = {Vec3(fx+6.f/6.f, fy+1.f, 0.f), color};
+                } {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.25f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.25f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+0.f, fy+0.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r0,  fy+1.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r1,  fy+3.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r2,  fy+5.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+0.f, fy+6.f/6.f, 0.f), color};
+                } break;
+                case '7': {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.5f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.5f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+0.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f/6.f, fy+r0,  0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+2.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+3.f/6.f, fy+r1,  0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+4.f/6.f, fy+1.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+5.f/6.f, fy+r2,  0.f), color};
+                    *(vertices++) = {Vec3(fx+6.f/6.f, fy+1.f, 0.f), color};
+                } {
+                    const RgbaColor color = basic_color;
+                    float r0 = 0.5f+0.25f*((13*x+17*y)%23)/23.f;
+                    float r1 = 0.5f;
+                    float r2 = 0.5f+0.25f*((17*x+13*y)%23)/23.f;
+                    *(vertices++) = {Vec3(fx+1.f, fy+0.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r0,  fy+1.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+2.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r1,  fy+3.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+4.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+r2,  fy+5.f/6.f, 0.f), color};
+                    *(vertices++) = {Vec3(fx+1.f, fy+6.f/6.f, 0.f), color};
+                } break;
             }
             if(block_info[c] & BLOCK_HAS_TWO_LAYERS){
                 const RgbaColor color = {0, 0, 0, 25};
@@ -354,8 +489,8 @@ void load_level_into_buffer(BufferAndCount *buffer, BufferAndCount *t_buffer){
     
     if(t_buffer != nullptr){
         start_temp_alloc();
-        Vertex_PT *o_t_vertices = (Vertex_PT *)temp_alloc(t_vertex_count*sizeof(Vertex_PT));
-        Vertex_PT *t_vertices = o_t_vertices;
+        Vertex_PN *o_t_vertices = (Vertex_PN *)temp_alloc(t_vertex_count*sizeof(Vertex_PN));
+        Vertex_PN *t_vertices = o_t_vertices;
         
         float fx = 0.f;
         for(int x=0; x<level_width; x++){
@@ -363,13 +498,13 @@ void load_level_into_buffer(BufferAndCount *buffer, BufferAndCount *t_buffer){
             for(int y=0; y<level_height; y++){
                 char c = layout[x][y];
                 if(block_info[c] & BLOCK_IS_TRANSPARENT){
-                    Vec2 t00 = {0.f, 0.f};
-                    Vec2 t01 = {0.f, 1.f};
-                    Vec2 t10 = {1.f, 0.f};
-                    Vec2 t11 = {1.f, 1.f};
+                    Vec3 t00 = {0.f, 0.f, 6.28f*some_rand(x, y)};
+                    Vec3 t01 = {0.f, 1.f, 6.28f*some_rand(x, y)};
+                    Vec3 t10 = {1.f, 0.f, 6.28f*some_rand(x, y)};
+                    Vec3 t11 = {1.f, 1.f, 6.28f*some_rand(x, y)};
                     u8 tms = rand()%4;
                     for(u8 i=0; i<tms; i++){
-                        Vec2 tmp = t00;
+                        Vec3 tmp = t00;
                         t00 = t01;
                         t01 = t11;
                         t11 = t10;
@@ -518,8 +653,10 @@ void load_goal_into_buffer(BufferAndCount *buffer, BufferAndCount *loading_buffe
         { 155,   0, 155, 255 },
         {   0, 155, 155, 255 },
     };
-    if(!rendered_player.completed_level || enemies.size > 0){
-        int vertex_count = 3*triangles*(1+enemies.size);
+    if(!rendered_player.completed_level || enemies.size > 0 || platforms.size){
+        StaticArray<Vec2, MAX_ENEMIES> &enemies_snapshot = enemies_snapshots[last_rendered_player_snapshot];
+        StaticArray<Vec2, MAX_PLATFORMS> &platforms_snapshot = platforms_snapshots[last_rendered_player_snapshot];
+        int vertex_count = 3*triangles*(1+enemies_snapshot.size) + 6*platforms_snapshot.size;
         
         Vertex_PCa o_vertices[vertex_count];
         Vertex_PCa *vertices = o_vertices;
@@ -532,15 +669,36 @@ void load_goal_into_buffer(BufferAndCount *buffer, BufferAndCount *loading_buffe
                 *(vertices++) = {Vec3(goal_position.x+s*triangle_positions[i][j].x, goal_position.y+s*triangle_positions[i][j].y, triangle_positions[i][j].z), color};
             }
         }
-        RgbaColor color = {0, 0, 0, 255};
-        for(int k=0; k<enemies.size; k++){
-            Vec2 p = enemies[k];
-            for(int i=0; i<triangles; i++){
-                for(int j=0; j<3; j++){
-                    float t = player.time/triangle_periods[i][j];
-                    float s = cos(t);
-                    *(vertices++) = {Vec3(p.x+s*triangle_positions[i][j].x, p.y+s*triangle_positions[i][j].y, 0.01f), color};
+        {
+            RgbaColor color = {0, 0, 0, 255};
+            for(int k=0; k<enemies_snapshot.size; k++){
+                Vec2 p = enemies_snapshot[k];
+                for(int i=0; i<triangles; i++){
+                    for(int j=0; j<3; j++){
+                        float t = player.time/triangle_periods[i][j];
+                        float s = cos(t);
+                        *(vertices++) = {Vec3(p.x+s*triangle_positions[i][j].x, p.y+s*triangle_positions[i][j].y, 0.01f), color};
+                    }
                 }
+            }
+        }
+        {
+            RgbaColor color = {0, 0, 0, 255};
+            for(int k=0; k<platforms_snapshot.size; k++){
+                Vec2 r = platforms_snapshot[k];
+                Vec2 s = platforms[k].size;
+                Vec3 box[4] = {
+                    Vec3(r.x-s.x, r.y-s.y, 0.01f),
+                    Vec3(r.x+s.x, r.y-s.y, 0.01f),
+                    Vec3(r.x-s.x, r.y+s.y, 0.01f),
+                    Vec3(r.x+s.x, r.y+s.y, 0.01f),
+                };
+                *(vertices++) = {box[0], color};
+                *(vertices++) = {box[1], color};
+                *(vertices++) = {box[2], color};
+                *(vertices++) = {box[2], color};
+                *(vertices++) = {box[1], color};
+                *(vertices++) = {box[3], color};
             }
         }
         
@@ -555,17 +713,21 @@ void load_goal_into_buffer(BufferAndCount *buffer, BufferAndCount *loading_buffe
         Vertex_PCa o_vertices[vertex_count];
         Vertex_PCa *vertices = o_vertices;
         
-        RgbaColor color = rendered_player.completed_level ? RgbaColor{255, 255, 255, 255} : RgbaColor{255, 50, 50, (u8)(MIN(rendered_player.cancel_next_level_in, 1.f)*255)};
+        RgbaColor color = rendered_player.completed_level ? RgbaColor{255, 255, 255, 180} : RgbaColor{255, 50, 50, (u8)(MIN(rendered_player.cancel_next_level_in, 1.f)*180)};
         
         float t = (load_next_level_in_max-rendered_player.load_next_level_in)/load_next_level_in_max;
         Vec3 box[3][4];
         float y_range = 0.5f*screen_portion_of_ui_bottom*actual_screen_ratio;
-        float half_y_range = 0.5f*y_range;
+        //float half_y_range = 0.5f*y_range;
+        float y_sp = 0.5f*y_range;
+        float x_sp = 0.5f*y_range;
+        float x_range = 1.f-y_range;
         float dists[] = {0.3f*y_range, 0.35f*y_range, 0.4f*y_range};
+        //float dists[] = {0.6f*y_range, 0.7f*y_range, 0.8f*y_range};
         const Vec3 line[3][2] = {
-            { Vec3(half_y_range, half_y_range, -1.f), Vec3(half_y_range-dists[0]+t*(1.f-y_range+dists[0]), half_y_range, -0.3f) },
-            { Vec3(half_y_range, half_y_range, -1.f), Vec3(1.f-half_y_range, half_y_range, -0.3f) },
-            { Vec3(half_y_range, half_y_range, -1.f), Vec3(1.f-half_y_range, half_y_range, -0.3f) },
+            { Vec3(x_sp, y_sp, -1.f), Vec3(x_sp+t*x_range, y_sp, -0.3f) },
+            { Vec3(x_sp, y_sp, -1.f), Vec3(x_sp+x_range, y_sp, -0.3f) },
+            { Vec3(x_sp, y_sp, -1.f), Vec3(x_sp+x_range, y_sp, -0.3f) },
         };
         for(int i=0; i<3; i++){
             box[i][0] = line[i][0] + Vec3(-dists[i], -dists[i], 0.f);

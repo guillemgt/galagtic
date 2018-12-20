@@ -21,7 +21,7 @@ extern BufferAndCount text_buffer;
 extern GLuint text_vao;
 
 void init_openGL();
-void draw_scene(bool update_level);
+void draw_scene();
 void change_window_size();
 
 #endif /* render_hpp */

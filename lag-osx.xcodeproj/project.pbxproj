@@ -11,6 +11,7 @@
 		9A7A3EC820EEB91F0073A074 /* ptca_shader.glsl in Resources */ = {isa = PBXBuildFile; fileRef = 9A7A3EC720EEB91E0073A074 /* ptca_shader.glsl */; };
 		9AC75652208B66F80052A060 /* world.txt in Resources */ = {isa = PBXBuildFile; fileRef = 9AC75651208B66F80052A060 /* world.txt */; };
 		9ACBD3A32100E56900E92ABE /* os_osx.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9ACBD3A22100E56900E92ABE /* os_osx.mm */; };
+		9ACCBBF021AABF6B00C153CA /* ptt_shader.glsl in Resources */ = {isa = PBXBuildFile; fileRef = 9ACCBBEF21AABF6A00C153CA /* ptt_shader.glsl */; };
 		9ACF89241F963CFA00BCE1C5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9ACF89231F963CFA00BCE1C5 /* Assets.xcassets */; };
 		9ACF89331F963EEF00BCE1C5 /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9ACF89311F963EEE00BCE1C5 /* SDL2.framework */; };
 		9ACF89351F963EF700BCE1C5 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9ACF89341F963EF700BCE1C5 /* OpenGL.framework */; };
@@ -43,6 +44,7 @@
 		9AC7564E208B36C90052A060 /* player.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = player.hpp; sourceTree = "<group>"; };
 		9AC75651208B66F80052A060 /* world.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = world.txt; path = code/world.txt; sourceTree = SOURCE_ROOT; };
 		9ACBD3A22100E56900E92ABE /* os_osx.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = os_osx.mm; sourceTree = "<group>"; };
+		9ACCBBEF21AABF6A00C153CA /* ptt_shader.glsl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = ptt_shader.glsl; sourceTree = "<group>"; };
 		9ACD89A5210EF406004BC82A /* os_wasm.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = os_wasm.cpp; sourceTree = "<group>"; };
 		9ACD89A72110BCC8004BC82A /* menu.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = menu.cpp; sourceTree = "<group>"; };
 		9ACD89A82110BCC9004BC82A /* menu.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = menu.hpp; sourceTree = "<group>"; };
@@ -132,6 +134,7 @@
 			children = (
 				9A2E9A651F97832800A772AE /* pca_shader.glsl */,
 				9A8951202094F1BA00D84458 /* pt_shader.glsl */,
+				9ACCBBEF21AABF6A00C153CA /* ptt_shader.glsl */,
 				9A7A3EC720EEB91E0073A074 /* ptca_shader.glsl */,
 			);
 			name = Shaders;
@@ -313,6 +316,7 @@
 				9AFAE74820962369003401A9 /* sound_walk_1.wav in Resources */,
 				9AFAE74620962369003401A9 /* sound_death.wav in Resources */,
 				9AFAE74720962369003401A9 /* sound_walk_0.wav in Resources */,
+				9ACCBBF021AABF6B00C153CA /* ptt_shader.glsl in Resources */,
 				9AC75652208B66F80052A060 /* world.txt in Resources */,
 				9AFAE7412094F6E9003401A9 /* textures.png in Resources */,
 				9A7A3EC820EEB91F0073A074 /* ptca_shader.glsl in Resources */,

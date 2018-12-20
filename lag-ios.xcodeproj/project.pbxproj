@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9A71D32021B7F40B0070EBBD /* ptt_shader.glsl in Resources */ = {isa = PBXBuildFile; fileRef = 9A71D31F21B7F4090070EBBD /* ptt_shader.glsl */; };
 		9A73A2B320F1357200D63A72 /* libbz2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A73A2B220F1357200D63A72 /* libbz2.tbd */; };
 		9A73A2BA20F2777500D63A72 /* Models in Resources */ = {isa = PBXBuildFile; fileRef = 9A73A2B720F2777500D63A72 /* Models */; };
 		9A73A2BB20F2777500D63A72 /* Sound in Resources */ = {isa = PBXBuildFile; fileRef = 9A73A2B820F2777500D63A72 /* Sound */; };
@@ -27,11 +28,11 @@
 		9AC07D872087F02B00A348EF /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9AC07D862087F02B00A348EF /* main.mm */; };
 		9ACA42B220893F8A00039B86 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9ACA42B120893F8900039B86 /* CoreMotion.framework */; };
 		9ACA42B42089466A00039B86 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9ACA42B32089466A00039B86 /* CoreLocation.framework */; };
-		9ACA42B8208A56BD00039B86 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9ACA42B7208A56BD00039B86 /* AVFoundation.framework */; };
 		9ACA42BA208A56C600039B86 /* MediaPlayer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9ACA42B9208A56C500039B86 /* MediaPlayer.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9A71D31F21B7F4090070EBBD /* ptt_shader.glsl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = ptt_shader.glsl; sourceTree = "<group>"; };
 		9A73A2AC20F12B3600D63A72 /* player.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = player.cpp; sourceTree = "<group>"; };
 		9A73A2AD20F12B3600D63A72 /* player.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = player.hpp; sourceTree = "<group>"; };
 		9A73A2AF20F12F1600D63A72 /* libfreetype-arm64.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libfreetype-arm64.a"; path = "lag-ios/libfreetype-arm64.a"; sourceTree = "<group>"; };
@@ -100,6 +101,9 @@
 		9ACA42B5208A54D900039B86 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		9ACA42B7208A56BD00039B86 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		9ACA42B9208A56C500039B86 /* MediaPlayer.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MediaPlayer.framework; path = System/Library/Frameworks/MediaPlayer.framework; sourceTree = SDKROOT; };
+		9AE600B6212EC2E300704066 /* menu.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = menu.cpp; sourceTree = "<group>"; };
+		9AE600B7212EC2E400704066 /* menu.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = menu.hpp; sourceTree = "<group>"; };
+		9AE600B9212F1C1A00704066 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,7 +113,6 @@
 			files = (
 				9A73A2B320F1357200D63A72 /* libbz2.tbd in Frameworks */,
 				9ACA42BA208A56C600039B86 /* MediaPlayer.framework in Frameworks */,
-				9ACA42B8208A56BD00039B86 /* AVFoundation.framework in Frameworks */,
 				9ACA42B42089466A00039B86 /* CoreLocation.framework in Frameworks */,
 				9ACA42B220893F8A00039B86 /* CoreMotion.framework in Frameworks */,
 				9AC07D352087EAAC00A348EF /* CoreFoundation.framework in Frameworks */,
@@ -196,6 +199,7 @@
 		9AC07D2F2087EA9D00A348EF /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				9AE600B9212F1C1A00704066 /* AudioToolbox.framework */,
 				9A73A2B420F1732500D63A72 /* libpng.a */,
 				9A73A2B220F1357200D63A72 /* libbz2.tbd */,
 				9A73A2AF20F12F1600D63A72 /* libfreetype-arm64.a */,
@@ -218,6 +222,8 @@
 			children = (
 				9AC07D402087EB4400A348EF /* main.cpp */,
 				9AC07D3D2087EB4400A348EF /* main.hpp */,
+				9AE600B6212EC2E300704066 /* menu.cpp */,
+				9AE600B7212EC2E400704066 /* menu.hpp */,
 				9A73A2AC20F12B3600D63A72 /* player.cpp */,
 				9A73A2AD20F12B3600D63A72 /* player.hpp */,
 				9AC07D382087EB4300A348EF /* render.cpp */,
@@ -263,6 +269,7 @@
 				9A73A2BD20F2798500D63A72 /* pt_shader.glsl */,
 				9A73A2C320F2AFCC00D63A72 /* pta_shader.glsl */,
 				9A73A2BF20F2798600D63A72 /* ptca_shader.glsl */,
+				9A71D31F21B7F4090070EBBD /* ptt_shader.glsl */,
 			);
 			name = Shaders;
 			path = ../code/Shaders;
@@ -343,6 +350,7 @@
 				9A73A2C220F2798600D63A72 /* ptca_shader.glsl in Resources */,
 				9A73A2C020F2798600D63A72 /* pt_shader.glsl in Resources */,
 				9A73A2BB20F2777500D63A72 /* Sound in Resources */,
+				9A71D32021B7F40B0070EBBD /* ptt_shader.glsl in Resources */,
 				9A73A2C420F2AFCC00D63A72 /* pta_shader.glsl in Resources */,
 				9AC07D1A2087E44800A348EF /* Main.storyboard in Resources */,
 				9A73A2BC20F2777500D63A72 /* Textures in Resources */,

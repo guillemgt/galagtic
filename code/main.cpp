@@ -22,12 +22,16 @@
 #include "world.cpp"
 #include "menu.cpp"
 
-#define LAGGY 0
+#define LAGGY 1
 
 int game_mode;
 
-bool should_update_level, should_new_level;
-bool game_started;
+bool should_update_level, should_new_level, should_save_game;
+bool game_started, game_started_this_run;
+
+float input_lag_time, visual_lag_time, particle_lag_time, sound_lag_time;
+
+int loaded_save_level;
 
 int init_game(){
     char path[MAX_PATH_LENGTH];
@@ -44,19 +48,61 @@ int init_game(){
     while(disabled_options[menu_selected_option]) menu_selected_option++;
     
     player.game_time = 0.f;
+    player.best_time = -1.f;
+    player.best_lives = 9;
+    game_started_this_run = false;
+    load_game();
     
     return 1;
 }
 
-void new_game(){
+void new_game(bool newer_game){
     game_started = true;
+    game_started_this_run = true;
     
     // New game
     player.lives = 3;
     player.time = 0.f;
+    player.space_lagged = newer_game;
+#if 0
+    input_lag_time = 0.f;
+    visual_lag_time = 0.f;
+    particle_lag_time = 0.f;
+    sound_lag_time = 0.f;
+#else
+    if(newer_game){
+        input_lag_time = 2.f/3.f;
+        visual_lag_time = 0.f;
+        particle_lag_time = 0.f;
+        sound_lag_time = 0.f;
+    }else{
+        input_lag_time = 0.f;
+        visual_lag_time = 2.f/3.f;
+        particle_lag_time = 2.f/3.f;
+        sound_lag_time = 2.f/3.f;
+    }
+#endif
+    
+    load_level(0);
+    should_update_level = true;
+    should_new_level = true;
+    should_save_game = true;
     
     init_messages();
-    load_level(0);
+}
+
+void continue_game(){
+    game_started = true;
+    game_started_this_run = true;
+    
+    player.time = 0.f;
+    
+    load_level(loaded_save_level);
+    should_update_level = true;
+    should_new_level = true;
+    should_save_game = false;
+    
+    init_messages();
 }
 
 extern f32 TIME_STEP;
@@ -73,6 +119,7 @@ extern "C" {
 
 #if MEASURE_TIME
 static double logic_time = 0., drawing_time = 0.;
+static int actionsThisSecond = 0;
 #endif
 
 extern "C" {
@@ -157,63 +204,79 @@ int game_loop(bool keys[KEYS_NUM], StaticArray<Event, MAX_EVENTS_PER_LOOP> event
         player.keys[0] = keys[KEYS_LEFT];
         player.keys[1] = keys[KEYS_RIGHT];
         player.keys[2] = keys[KEYS_SPACE] | keys[KEYS_UP];
-#if DEVMODE
     }
-#if LAGGY
-    player.game_time += TIME_STEP;
-    static int next_full_slot = 0;
-    static int next_free_slot = 0;
-    static u8 last_keys = 0, practical_keys = 0;
-    const float lag_delay = 2.f/3.f;
-    struct FrameKeyInfo {
-        float time;
-        u8 keys;
-    };
-    const int slots = 100;
-    static FrameKeyInfo frame_keys[slots] = {{-1.f, 0}};
-    
-    if(last_keys != current_keys){
-        frame_keys[next_free_slot] = {player.game_time+lag_delay, current_keys};
-        next_free_slot = (next_free_slot + 1) % slots;
-        frame_keys[next_free_slot] = {-1.f, 0};
-        last_keys = current_keys;
-    }
-    
-    while(0 < frame_keys[next_full_slot].time && frame_keys[next_full_slot].time < player.game_time){
-        practical_keys = frame_keys[next_full_slot].keys;
-        next_full_slot = (next_full_slot + 1) % slots;
-    }
-#else
-    u8 practical_keys = current_keys;
-#endif
     if(game_mode == GAME_MODE_PLAY){
+        static auto last_actions_time = std::chrono::high_resolution_clock::now();
+        auto this_actions_time = std::chrono::high_resolution_clock::now();
+        static double time_since_last_action = 0.f;
+        time_since_last_action += ((std::chrono::duration<double, std::milli>)(this_actions_time-last_actions_time)).count()*0.001;
+        last_actions_time = this_actions_time;
+        while(time_since_last_action >= TIME_STEP){
+#if LAGGY
+            static int next_full_slot = 0;
+            static int next_free_slot = 0;
+            static u8 last_keys = 0, practical_keys = 0;
+            struct FrameKeyInfo {
+                float time;
+                u8 keys;
+            };
+            const int slots = 100;
+            static FrameKeyInfo frame_keys[slots] = {{-1.f, 0}};
+            
+            if(last_keys != current_keys){
+                frame_keys[next_free_slot] = {player.game_time+input_lag_time, current_keys};
+                next_free_slot = (next_free_slot + 1) % slots;
+                frame_keys[next_free_slot] = {-1.f, 0};
+                last_keys = current_keys;
+            }
+            while(0 <= frame_keys[next_full_slot].time && frame_keys[next_full_slot].time <= player.game_time){
+                practical_keys = frame_keys[next_full_slot].keys;
+                next_full_slot = (next_full_slot + 1) % slots;
+            }
+            if(player.space_lagged)
+                practical_keys = (practical_keys & (0xff ^ frame_key_space)) | (current_keys & frame_key_space);
+#else
+            u8 practical_keys = current_keys;
+#endif
+            
+            if(should_save_game){
+                save_game();
+                should_save_game = false;
+            }
 #if DEBUG_PAUSE
-        static bool paused = false, pressed_p = false, pressed_n = false;
-        
-        if(keys[KEYS_P]){
-            if(!pressed_p){
-                pressed_p = true;
-                paused = !paused;
-            }
-        }else
-            pressed_p = false;
-        bool go_on = false;
-        if(keys[KEYS_N]){
-            if(!pressed_n){
-                pressed_n = true;
-                go_on = true;
-            }
-        }else
-            pressed_n = false;
-        if(paused && !go_on)
-            return 1;
+            static bool paused = false, pressed_p = false, pressed_n = false;
+            
+            if(keys[KEYS_P]){
+                if(!pressed_p){
+                    pressed_p = true;
+                    paused = !paused;
+                }
+            }else
+                pressed_p = false;
+            bool go_on = false;
+            if(keys[KEYS_N]){
+                if(!pressed_n){
+                    pressed_n = true;
+                    go_on = true;
+                }
+            }else
+                pressed_n = false;
+            if(paused && !go_on)
+                return 1;
 #endif
-        player.time += TIME_STEP;
-        player.level_time += TIME_STEP;
-        player.game_time += TIME_STEP;
+            player.time += TIME_STEP;
+            player.shown_time += TIME_STEP;
+            player.game_time += TIME_STEP;
+            
+            last_player = player;
+            process_movement(practical_keys);
+            
+            time_since_last_action -= TIME_STEP;
+#if MEASURE_TIME
+            actionsThisSecond++;
 #endif
-        process_movement(practical_keys);
-        process_messages(player.game_time);
+        }
+        player_interpolation_factor = time_since_last_action / TIME_STEP; // We render 1 frame behind... I guess it doesn't matter...
         
 #if MEASURE_TIME
         auto thisFrame = std::chrono::high_resolution_clock::now();
@@ -222,7 +285,12 @@ int game_loop(bool keys[KEYS_NUM], StaticArray<Event, MAX_EVENTS_PER_LOOP> event
         
         // if(...) should_update_level = true;
     }else{
-        process_menu(practical_keys);
+#if !OS_IS_MOBILE
+        process_menu(current_keys);
+#else
+        extern Vec2 touch_point;
+        process_menu(touch_point);
+#endif
     }
     
 #if OS != OS_IOS && OS != OS_WASM
@@ -240,7 +308,6 @@ int game_loop(bool keys[KEYS_NUM], StaticArray<Event, MAX_EVENTS_PER_LOOP> event
             game_loop(keys, events);
         }
     }
-    
     return 1;
 }
 void game_draw(){
@@ -257,8 +324,9 @@ void game_draw(){
     timeThisSecond += time_elapsed.count();
     
     if(timeThisSecond > 1000.f){
-        printf("FPS: %i (logic: %lg%%, drawing: %lg%%)\n", framesThisSecond, logic_time, drawing_time);
+        printf("FPS: %i/%i (logic: %lg%%, drawing: %lg%%)\n", actionsThisSecond, framesThisSecond, logic_time, drawing_time);
         framesThisSecond = 0;
+        actionsThisSecond = 0;
         timeThisSecond = 0.f;
         logic_time = 0.f;
         drawing_time = 0.f;
@@ -269,7 +337,7 @@ void game_draw(){
 #endif
     
     if(game_mode == GAME_MODE_PLAY){
-        draw_scene(should_update_level);
+        draw_scene();
         should_update_level = false;
         should_new_level = false;
     }else{
@@ -295,9 +363,48 @@ extern "C" {
     }
 }
 
+void save_game(){
+    OsFile fp = open_user_file("save", "wb");
+    if(fp == nullptr){
+        printf("Error: Couldn't write save file\n");
+        return;
+    }
+    bool unlocked_newer_game = false;
+    write_file(&unlocked_newer_game, sizeof(bool), 1, fp);
+    i8 level;
+    if(game_started){
+        level = current_level;
+        write_file(&level, sizeof(i8), 1, fp);
+        write_file(&player.shown_time, sizeof(player.shown_time), 1, fp);
+        write_file(&player.lives, sizeof(player.lives), 1, fp);
+        write_file(&player.space_lagged, sizeof(player.space_lagged), 1, fp);
+    }else{
+        level = -1;
+        write_file(&level, sizeof(i8), 1, fp);
+    }
+}
+void load_game(){
+    OsFile fp = open_user_file("save", "rb");
+    if(fp == nullptr)
+        return;
+    bool unlocked_newer_game = false;
+    read_file(&unlocked_newer_game, sizeof(bool), 1, fp);
+    i8 level;
+    read_file(&level, sizeof(i8), 1, fp);
+    if(level >= 0){
+        loaded_save_level = level;
+        game_started = true;
+        read_file(&player.shown_time, sizeof(player.shown_time), 1, fp);
+        read_file(&player.lives, sizeof(player.lives), 1, fp);
+        read_file(&player.space_lagged, sizeof(player.space_lagged), 1, fp);
+    }else
+        game_started = false;
+}
+
 #if OS != OS_WASM
 #define STB_IMAGE_IMPLEMENTATION
 #include "basecode/Include/stb_image.h"
 #endif
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "basecode/Include/stb_truetype.h"
+

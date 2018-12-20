@@ -12,18 +12,19 @@ extern "C" {
 #endif
 }
 
-void new_game();
+void new_game(bool newer_game);
+void continue_game();
+void save_game();
+void load_game();
 
-extern bool should_update_level, should_new_level;
-extern bool game_started;
+extern bool should_update_level, should_new_level, should_save_game;
+extern bool game_started, game_started_this_run;
 extern int game_mode;
 const int GAME_MODE_PLAY  = 0;
 const int GAME_MODE_MENU  = 1;
 const int GAME_MODE_START = 2;
 
-const float visual_lag_time = 0.666f;
-const float particle_lag_time = 0.66f;
-const float sound_lag_time = 0.66f;
+extern float input_lag_time, visual_lag_time, particle_lag_time, sound_lag_time;
 
 #define DEVMODE 1
 

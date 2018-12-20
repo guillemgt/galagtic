@@ -14,38 +14,49 @@ struct Particle {
 };
 StaticArray<Particle, MAX_PARTICLES> particles(0);
 
-#define MAX_FPS 1000
+#define MAX_FPS 120
 Player player_snapshots[MAX_FPS];
 int next_free_player_snapshot = 0;
 int last_rendered_player_snapshot = 0;
 Player rendered_player;
+float player_interpolation_factor;
 
 ParticleMessage particle_messages[MAX_FPS];
 SoundMessage       sound_messages[MAX_FPS];
 
+// Lateral movement
 const float player_walk_speed = 10.f;
 const float player_walk_acceleration = 5.f*60.f;
-const float player_jump_speed = 9.6f;
 const float player_air_acceleration = 3.f*60.f;
+// Jump
+const float gravity = -40.f;
+const float player_jump_speed = 9.6f;
 const float player_max_speed_down = -12.f;
+const float jump_button_until_height = 1.5f;
+// Wall jump
 const float player_max_speed_down_while_sticking_to_wall = -4.f;
 const float time_sticking_to_wall = 4.f/60.f;
 const float wall_jump_speed_x = 10.f;
-const float gravity = -40.f;
 const float after_wall_jump_acceleration = 0.2f*60.f;
+
 const float falling_things_speed = -0.5f;
 const Vec2 player_size = Vec2(0.1625f, 0.4f);
 const Vec2 player_box_size = Vec2(0.1625f, 0.2f);
 const float player_y_offset = 0.f;
 
+const float platform_speed = 2.f;
+
 StaticArray<Vec2, MAX_ENEMIES> level_enemies[max_levels];
 StaticArray<Vec2, MAX_ENEMIES> enemies;
-const Vec2 enemies_speed = Vec2(-2.f, 0.f);
+StaticArray<Vec2, MAX_ENEMIES> enemies_snapshots[MAX_FPS];
+StaticArray<Vec2, MAX_PLATFORMS> level_platforms[max_levels];
+StaticArray<Platform, MAX_PLATFORMS> platforms;
+StaticArray<Vec2, MAX_PLATFORMS> platforms_snapshots[MAX_FPS];
 const Vec2 enemies_box_size = Vec2(0.2f, 0.2f);
 
-float level_moving_y;
+StaticArray<Vec2, MAX_PLATFORMS> platfoms;
 
-Player player;
+Player player, last_player;
 GameStats game_stats;
 int level_state;
 
@@ -141,14 +152,16 @@ void process_movement(u8 keys){
     }
     
     static bool space_was_up = false;
+    static float last_frames_gravity = 0.f;
     
-    if(player.jump_height >= 0.f && player.jump_height < 1.5f){
+    if(player.jump_height >= 0.f && player.jump_height < jump_button_until_height){
         if(keys & frame_key_jump){
-            player.v.y -= gravity * TIME_STEP;
+            player.v.y -= last_frames_gravity;
         }
         player.jump_height += player.v.y*TIME_STEP;
     }
     if(keys & frame_key_jump){
+        player.at_platform = -1;
         if(player.on_ground){
             player.v.y = player_jump_speed;
             player.on_ground = false;
@@ -177,6 +190,10 @@ void process_movement(u8 keys){
     }else if(player.sticking_to_wall != 0){
         space_was_up = true;
     }
+    
+    
+    if(player.at_platform >= 0)
+        player.v += platform_speed*platforms[player.at_platform].v;
     
     float time_left = TIME_STEP;
     u8 can_skip = 0;
@@ -239,9 +256,51 @@ void process_movement(u8 keys){
             }
         }
         
-        if(player.v.y > falling_things_speed){
+        for(int i=0; i<platforms.size; i++){
+            Vec2 v = player.v - platforms[i].v;
+            Vec2 size = player_size + platforms[i].size;
+            Vec2 r = player.r - platforms[i].r;
+            
+            if(v.x > 0.f){
+                float t = (r.x + size.x)/v.x;
+                float ny = r.y + t*v.y;
+                if(t >= 0.f && t < min_time && ny >= -size.y && ny <= size.y){
+                    min_time = t;
+                    direction = 4;
+                    player.at_platform = i;
+                }
+            }else if(v.x < 0.f){
+                float t = -(r.x - size.x)/v.x;
+                float ny = r.y + t*v.y;
+                if(t >= 0.f && t < min_time && ny >= -size.y && ny <= size.y){
+                    min_time = t;
+                    direction = 5;
+                    player.at_platform = i;
+                }
+            }
+            
+            if(v.y > 0.f){
+                float t = (r.y + size.y)/v.y;
+                float nx = r.x + t*v.x;
+                if(t >= 0.f && t < min_time && nx >= -size.x && nx <= size.x){
+                    min_time = t;
+                    direction = 6;
+                    player.at_platform = i;
+                }
+            }else if(v.y < 0.f){
+                float t = -(r.y - size.y)/v.y;
+                float nx = r.x + t*v.x;
+                if(t >= 0.f && t < min_time && nx >= -size.x && nx <= size.x){
+                    min_time = t;
+                    direction = 7;
+                    player.at_platform = i;
+                }
+            }
+        }
+        
+        /*if(player.v.y > falling_things_speed){
             if(!(can_skip & (1 << 4))){
-                float r = player.r.y + player_size.y - level_moving_y;
+                float r = player.r.y + player_size.y - player.level_moving_y;
                 float fr = ceil(r);
                 float v = player.v.y - falling_things_speed;
                 f32 t = (fr-r)/v;
@@ -252,7 +311,7 @@ void process_movement(u8 keys){
             }
         }else if(player.v.y < falling_things_speed){
             if(!(can_skip & (1 << 5))){
-                float r = player.r.y - player_size.y - level_moving_y;
+                float r = player.r.y - player_size.y - player.level_moving_y;
                 float fr = floor(r);
                 float v = player.v.y - falling_things_speed;
                 f32 t = (fr-r)/v;
@@ -261,10 +320,23 @@ void process_movement(u8 keys){
                     direction = 5;
                 }
             }
-        }
+        }*/
         
         player.r += player.v * min_time;
-        level_moving_y += min_time*falling_things_speed;
+        player.level_moving_y += min_time*falling_things_speed;
+        
+        for(int k=0; k<platforms.size; k++){
+            int x = (int)floorf(platforms[k].r.x + platforms[k].v.x*platforms[k].size.x);
+            int y = (int)floorf(platforms[k].r.y + platforms[k].v.y*platforms[k].size.y);
+            if(block_info[level_layout[x][y]] & BLOCK_STOPS_PLATFORMS){
+                platforms[k].v = -platforms[k].v;
+                if(player.at_platform == k){
+                    player.v += 2.f*platform_speed*platforms[k].v;
+                }
+            }
+            platforms[k].r += min_time*platform_speed*platforms[k].v;
+        }
+        
         if(direction == 0){
             int x = (int)floor(player.r.x) + 1;
             if(x >= level_width)
@@ -281,8 +353,8 @@ void process_movement(u8 keys){
                     }
                 }
                 {
-                    int low_y = (int)floor(player.r.y-player_size.y-level_moving_y);
-                    int high_y = (int)sfloor(player.r.y+player_size.y-level_moving_y);
+                    int low_y = (int)floor(player.r.y-player_size.y-player.level_moving_y);
+                    int high_y = (int)sfloor(player.r.y+player_size.y-player.level_moving_y);
                     for(int y=low_y; y<=high_y; y++){
                         if(block_info[level_moving_layout[x][y]] & BLOCK_IS_SOLID){
                             player.v.x = 0;
@@ -296,6 +368,7 @@ void process_movement(u8 keys){
             }else{
                 player.sticking_to_wall = 1;
                 player.r.x = ceil(player.r.x) - player_size.x;
+                player.at_platform = -1;
             }
         }else if(direction == 1){
             int x = (int)floor(player.r.x) - 1;
@@ -313,8 +386,8 @@ void process_movement(u8 keys){
                     }
                 }
                 {
-                    int low_y = (int)floor(player.r.y-player_size.y-level_moving_y);
-                    int high_y = (int)sfloor(player.r.y+player_size.y-level_moving_y);
+                    int low_y = (int)floor(player.r.y-player_size.y-player.level_moving_y);
+                    int high_y = (int)sfloor(player.r.y+player_size.y-player.level_moving_y);
                     for(int y=low_y; y<=high_y; y++){
                         if(block_info[level_moving_layout[x][y]] & BLOCK_IS_SOLID){
                             player.v.x = 0;
@@ -328,6 +401,7 @@ void process_movement(u8 keys){
             }else{
                 player.sticking_to_wall = 2;
                 player.r.x = floor(player.r.x) + player_size.x;
+                player.at_platform = -1;
             }
         }else if(direction == 2){
             int y = (int)floor(player.r.y) + 1;
@@ -340,7 +414,6 @@ void process_movement(u8 keys){
                 for(int x=low_x; x<=high_x; x++){
                     if(block_info[level_layout[x][y]] & BLOCK_IS_SOLID){
                         player.v.y = 0;
-                        player.jump_height = -1.f;
                         break;
                     }
                 }
@@ -348,7 +421,9 @@ void process_movement(u8 keys){
             if(player.v.y != 0.f){
                 can_skip |= (1 << 2);
             }else{
+                player.jump_height = -1.f;
                 //player.r.y = ceil(player.r.y) - player_size.y;
+                player.at_platform = -1;
             }
         }else if(direction == 3){
             int y = (int)floor(player.r.y) - 1;
@@ -371,45 +446,32 @@ void process_movement(u8 keys){
                 player.on_ground = true;
                 player.jump_height = -1.f;
                 //player.r.y = floor(player.r.y) + player_size.y;
+                player.at_platform = -1;
             }
         }else if(direction == 4){
-            int y = (int)floor(player.r.y-level_moving_y) + 1;
-            if(y < level_height){
-                int low_x = (int)floor(player.r.x-player_size.x);
-                int high_x = (int)sfloor(player.r.x+player_size.x);
-                for(int x=low_x; x<=high_x; x++){
-                    if(block_info[level_moving_layout[x][y]] & BLOCK_IS_SOLID){
-                        player.v.y = falling_things_speed;
-                        player.jump_height = -1.f;
-                        break;
-                    }
-                }
-            }
-            if(player.v.y != falling_things_speed){
-                can_skip |= (1 << 4);
-            }
+            int i = player.at_platform;
+            player.v.x = platform_speed*platforms[i].v.x;
+            player.r.x = platforms[i].r.x-(player_size.x+platforms[i].size.x);
+            player.sticking_to_wall = 1;
         }else if(direction == 5){
-            const float next_speed = 0.5f*falling_things_speed;
-            int y = (int)floor(player.r.y-level_moving_y) - 1;
-            if(y >= 0){
-                int low_x  = (int) floor(player.r.x-player_size.x);
-                int high_x = (int)sfloor(player.r.x+player_size.x);
-                for(int x=low_x; x<=high_x; x++){
-                    if(block_info[level_moving_layout[x][y]] & BLOCK_IS_SOLID){
-                        player.v.y = next_speed;
-                        break;
-                    }
-                }
-            }
-            if(player.v.y != next_speed){
-                can_skip |= (1 << 5);
-                player.on_ground = false;
-            }else{
-                player.on_ground = true;
-                player.jump_height = -1.f;
-            }
+            int i = player.at_platform;
+            player.v.x = platform_speed*platforms[i].v.x;
+            player.r.x = platforms[i].r.x+(player_size.x+platforms[i].size.x);
+            player.sticking_to_wall = 2;
+        }else if(direction == 6){
+            int i = player.at_platform;
+            player.v.y = platform_speed*platforms[i].v.y;
+            player.r.y = platforms[i].r.y-(player_size.y+platforms[i].size.y);
+            player.jump_height = -1.f;
+        }else if(direction == 7){
+            int i = player.at_platform;
+            player.v.y = platform_speed*platforms[i].v.y;
+            player.r.y = platforms[i].r.y+(player_size.y+platforms[i].size.y);
+            player.on_ground = true;
+            player.jump_height = -1.f;
         }
-        if(direction >= 2 && player.sticking_to_wall){
+        
+        if((direction >= 2 && direction < 4) || (direction >= 6 && direction < 8)){
             bool unstick = true;
             int x = -1;
             if(player.sticking_to_wall == 1){
@@ -425,7 +487,7 @@ void process_movement(u8 keys){
                     if(block_info[level_layout[x][y]] & BLOCK_IS_SOLID)
                         unstick = false;
                 }{
-                    int y = (int)floor(player.r.y-level_moving_y);
+                    int y = (int)floor(player.r.y-player.level_moving_y);
                     
                     if(block_info[level_moving_layout[x][y]] & BLOCK_IS_SOLID)
                         unstick = false;
@@ -446,7 +508,9 @@ void process_movement(u8 keys){
     if(player.sticking_to_wall == 2 && player.v.x > 0.f)
         player.sticking_to_wall = 0;
     
-    player.v.y += gravity * TIME_STEP;
+    last_frames_gravity = gravity * TIME_STEP * (player.jump_height >= 0.f ? (1.f+jump_button_until_height)/(1.f+player.jump_height) : 1.f);
+    player.v.y += last_frames_gravity;
+    
     if(player.sticking_to_wall){
         if(player.v.y < player_max_speed_down_while_sticking_to_wall) player.v.y = player_max_speed_down_while_sticking_to_wall;
     }else{
@@ -455,6 +519,9 @@ void process_movement(u8 keys){
     if(player.v.y <= 0.f){
         direction_of_wall_jump = 0;
     }
+    
+    if(player.at_platform >= 0)
+        player.v -= platform_speed*platforms[player.at_platform].v;
     
     for(int k=0; k<enemies.size; k++){
         enemies[k] += TIME_STEP*enemies_speed;
@@ -473,7 +540,7 @@ void process_movement(u8 keys){
         for(int x=low_x; x<=high_x; x++){
             for(int y=low_y; y<=high_y; y++){
                 char block = level_layout[x][y];
-                u8 flags = block_info[block];
+                u16 flags = block_info[block];
                 if(flags & BLOCK_IS_GOAL){
                     if(player.load_next_level_in < 0.f){
                         add_particle_message(Vec2((float)x+0.5f, (float)y+0.5f), false);
@@ -485,39 +552,35 @@ void process_movement(u8 keys){
                             game_mode = GAME_MODE_START;
                     }
                 }else if(flags & BLOCK_IS_HARMFUL){
-                    switch(block){
-                        case '^':
-                        case 'U':
-                        case 'x': {
-                            if(f_low_y < y + 0.5f){
-                                kill = true;
-                                goto out_of_for;
-                            }
-                        } break;
-                        case 'v':
-                        case 'D':
-                        case 'y': {
-                            if(f_high_y > y + 0.5f){
-                                kill = true;
-                                goto out_of_for;
-                            }
-                        } break;
-                        case '>':
-                        case 'R':
-                        case 'z': {
-                            if(f_low_x < x + 0.5f){
-                                kill = true;
-                                goto out_of_for;
-                            }
-                        } break;
-                        case '<':
-                        case 'L':
-                        case 'w': {
-                            if(f_high_x > x + 0.5f){
-                                kill = true;
-                                goto out_of_for;
-                            }
-                        } break;
+                    if(flags & BLOCK_IS_HARMFUL_UP){
+                        if(f_low_y < y + 0.5f){
+                            kill = true;
+                            goto out_of_for;
+                        }
+                    }
+                    if(flags & BLOCK_IS_HARMFUL_DOWN){
+                        if(f_high_y > y + 0.5f){
+                            kill = true;
+                            goto out_of_for;
+                        }
+                    }
+                    if(flags & BLOCK_IS_HARMFUL_RIGHT){
+                        if(f_low_x < x + 0.5f){
+                            kill = true;
+                            goto out_of_for;
+                        }
+                    }
+                    if(flags & BLOCK_IS_HARMFUL_LEFT){
+                        if(f_high_x > x + 0.5f){
+                            kill = true;
+                            goto out_of_for;
+                        }
+                    }
+                    if(flags & BLOCK_IS_HARMFUL_CENTER){
+                        if(f_low_y < y + 0.85f || f_high_y > y + 0.15f || f_low_x < x + 0.85f || f_high_x > x + 0.15f){
+                            kill = true;
+                            goto out_of_for;
+                        }
                     }
                 }
             }
@@ -537,7 +600,7 @@ out_of_for:
         player.v = 0;
         add_particle_message(player.r, true);
         player.r = player.safe_r;
-        level_moving_y = 0.f;
+        player.level_moving_y = 0.f;
         player.level_time = level_state ? 1.f : 0.f;
         add_sound_message(SOUND_DEATH);
         if(player.completed_level) player.cancel_next_level_in = 2.f;
@@ -549,11 +612,13 @@ out_of_for:
         enemies.size = level_enemies[current_level].size;
         for(int i=0; i<enemies.size; i++)
             enemies[i] = level_enemies[current_level][i];
+        
+        should_save_game = true;
     }
     
     player.level_time += TIME_STEP;
-    if(player.level_time >= 2.f){
-        player.level_time -= 2.f;
+    if(player.level_time >= 1.f){
+        player.level_time -= 1.f;
         for(int x=0; x<level_width; x++){
             for(int y=0; y<level_height; y++){
                 if(level_layout[x][y] == 'a')
@@ -563,7 +628,6 @@ out_of_for:
             }
         }
         level_state = 1-level_state;
-        should_update_level = true;
     }
     
     if(player.cancel_next_level_in >= 0.f){
@@ -579,7 +643,15 @@ out_of_for:
     }
     
     player_snapshots[next_free_player_snapshot] = player;
+    enemies_snapshots[next_free_player_snapshot].size = enemies.size;
+    for(int k=0; k<enemies.size; k++)
+        enemies_snapshots[next_free_player_snapshot][k] = enemies[k];
+    platforms_snapshots[next_free_player_snapshot].size = platforms.size;
+    for(int k=0; k<platforms.size; k++)
+        platforms_snapshots[next_free_player_snapshot][k] = platforms[k].r;
     next_free_player_snapshot = (next_free_player_snapshot+1) % MAX_FPS;
+    
+    process_messages(player.game_time);
 }
 
 void process_messages(float time){
@@ -666,7 +738,6 @@ void process_messages(float time){
 void load_player_into_buffer(BufferAndCount *buffer){
     Vertex_PT o_vertices[6];
     Vertex_PT *vertices = o_vertices;
-    
     int next_candidate = (last_rendered_player_snapshot + 1) % MAX_FPS;
     while(player_snapshots[next_candidate].time < player.time-visual_lag_time){
         last_rendered_player_snapshot = next_candidate;
@@ -676,6 +747,10 @@ void load_player_into_buffer(BufferAndCount *buffer){
     Player player = rendered_player;
     if(player.load_next_level_in >= 0.f && player.load_next_level_in < TIME_STEP){
         should_new_level = true;
+        should_save_game = true;
+    }
+    if(player.level_time < TIME_STEP){
+        should_update_level = true;
     }
     Vec2 r = player.r+Vec2(0.f, player_y_offset);
     const float texture_size = 256.f;
@@ -686,6 +761,9 @@ void load_player_into_buffer(BufferAndCount *buffer){
     static int current_frame_y = 0;
     static int time_in_current_frame = 0;
     time_in_current_frame++;
+    
+    printf("%g\n", player.v.x);
+    
     bool flip = false;
     if(player.v.x < 0.f)
         flip = true;
@@ -729,6 +807,7 @@ void load_player_into_buffer(BufferAndCount *buffer){
         current_frame_y = 7;
         current_frame_x = 0;
     }
+    
     Vec2 t00, t10, t01, t11;
     if(flip){
         t10 = Vec2(current_frame_x*outer_picture_size+picture_margin, current_frame_y*outer_picture_size+picture_margin)/texture_size;
@@ -784,3 +863,124 @@ void load_particles_into_buffer(BufferAndCount *buffer){
         set_buffer_data_dynamic(buffer->buffer, o_vertices, buffer_count);
     end_temp_alloc();
 }
+
+/*
+void load_player_into_buffer(BufferAndCount *buffer){
+    Vertex_PT o_vertices[6];
+    Vertex_PT *vertices = o_vertices;
+    
+    rendered_player = player;
+    if(player.level_time < TIME_STEP){
+        should_update_level = true;
+    }
+    Vec2 r = (1.f-player_interpolation_factor)*last_player.r + player_interpolation_factor*player.r + Vec2(0.f, player_y_offset);
+    const float texture_size = 256.f;
+    const float outer_picture_size = 32.f;
+    const float inner_picture_size = 30.f;
+    const float picture_margin = 1.f;
+    static int current_frame_x = 0;
+    static int current_frame_y = 0;
+    static int time_in_current_frame = 0;
+    time_in_current_frame++;
+    
+    bool flip = false;
+    if(player.v.x < 0.f)
+        flip = true;
+    if(player.sticking_to_wall != 0){
+        current_frame_y = 4;
+        current_frame_x = 0;
+        flip = (player.sticking_to_wall == 1);
+    }else if(!player.on_ground){
+        if(fabs(player.v.x) > 0.3f)
+            current_frame_y = 6;
+        else{
+            current_frame_y = 5;
+        }
+        float factor = gravity*TIME_STEP;
+        if(player.v.y > 3.f+factor){
+            current_frame_x = 0;
+        }else if(player.v.y > 1.5f+factor){
+            current_frame_x = 1;
+        }else if(player.v.y > -1.5f+factor){
+            current_frame_x = 2;
+        }else if(player.v.y > -3.f+factor){
+            current_frame_x = 3;
+        }else{
+            current_frame_x = 4;
+        }
+    }else if(fabs(player.v.x) > 0.1f){
+        current_frame_y = 7;
+        if(time_in_current_frame >= 5){
+            time_in_current_frame = 0;
+            current_frame_x = current_frame_x%6 + 1;
+            if(current_frame_x == 1 || current_frame_x == 4){
+                static u8 odd = 0;
+                odd++;
+                if(odd)
+                    play_sound(SOUND_WALK_0);
+                else
+                    play_sound(SOUND_WALK_1);
+            }
+        }
+    }else{
+        current_frame_y = 7;
+        current_frame_x = 0;
+    }
+    
+    Vec2 t00, t10, t01, t11;
+    if(flip){
+        t10 = Vec2(current_frame_x*outer_picture_size+picture_margin, current_frame_y*outer_picture_size+picture_margin)/texture_size;
+        t00 = t10+Vec2(inner_picture_size/texture_size, 0.f);
+        t11 = t10+Vec2(0.f, inner_picture_size/texture_size);
+        t01 = t00+Vec2(0.f, inner_picture_size/texture_size);
+    }else{
+        t00 = Vec2(current_frame_x*outer_picture_size+picture_margin, current_frame_y*outer_picture_size+picture_margin)/texture_size;
+        t10 = t00+Vec2(inner_picture_size/texture_size, 0.f);
+        t01 = t00+Vec2(0.f, inner_picture_size/texture_size);
+        t11 = t10+Vec2(0.f, inner_picture_size/texture_size);
+    }
+    *(vertices++) = {Vec3(r.x-0.4f, r.y-0.4f, 0.1f), t00};
+    *(vertices++) = {Vec3(r.x+0.4f, r.y-0.4f, 0.1f), t10};
+    *(vertices++) = {Vec3(r.x-0.4f, r.y+0.4f, 0.1f), t01};
+    *(vertices++) = {Vec3(r.x-0.4f, r.y+0.4f, 0.1f), t01};
+    *(vertices++) = {Vec3(r.x+0.4f, r.y-0.4f, 0.1f), t10};
+    *(vertices++) = {Vec3(r.x+0.4f, r.y+0.4f, 0.1f), t11};
+    
+    buffer->count = (u32)(vertices-o_vertices);
+    set_buffer_data_dynamic(buffer->buffer, o_vertices, buffer->count);
+}
+
+void load_particles_into_buffer(BufferAndCount *buffer){
+    int vertex_count = 6*particles.size;
+    if(vertex_count == 0){
+        buffer->count = 0;
+        return;
+    }
+    
+    start_temp_alloc();
+    Vertex_PCa *o_vertices = (Vertex_PCa *)temp_alloc(vertex_count*sizeof(Vertex_PCa));
+    Vertex_PCa *vertices = o_vertices;
+    
+    for(int i=0; i<particles.size; i++){
+        const float size = 1.2f/30.f;
+        Vec2 r = particles[i].r - (1.f-player_interpolation_factor)*TIME_STEP*particles[i].v;
+        Vec2 p00 = r + Vec2(-size, 0.f);
+        Vec2 p01 = r + Vec2(0.f, -size);
+        Vec2 p10 = r + Vec2(0.f, +size);
+        Vec2 p11 = r + Vec2(+size, 0.f);
+        RgbaColor color = particles[i].color;
+        *(vertices++) = {Vec3(p00.x, p00.y, 0.f), color};
+        *(vertices++) = {Vec3(p10.x, p10.y, 0.f), color};
+        *(vertices++) = {Vec3(p01.x, p01.y, 0.f), color};
+        *(vertices++) = {Vec3(p01.x, p01.y, 0.f), color};
+        *(vertices++) = {Vec3(p10.x, p10.y, 0.f), color};
+        *(vertices++) = {Vec3(p11.x, p11.y, 0.f), color};
+    }
+    
+    u32 buffer_count = (u32)(vertices-o_vertices);
+    buffer->count = buffer_count;
+    if(buffer_count > 0)
+        set_buffer_data_dynamic(buffer->buffer, o_vertices, buffer_count);
+    end_temp_alloc();
+}
+*/
