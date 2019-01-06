@@ -25,32 +25,32 @@ float options_width[menu_total_options];
 
 float holding_key_times[8] = {-1.f, -1.f, -1.f, -1.f, -1.f};
 
-void select_menu_option(){
+void select_menu_option(GameState *game_state){
     switch(menu_selected_option){
         case -1: break;
         case 0:
-            if(!game_started_this_run)
-                continue_game();
-            c_close_menu();
-            break;
+        if(!game_started_this_run)
+            continue_game(game_state);
+        c_close_menu();
+        break;
         case 1:
-            new_game(false);
-            c_close_menu();
-            break;
+        new_game(game_state, false);
+        c_close_menu();
+        break;
         case 2:
-            new_game(true);
-            c_close_menu();
-            break;
+        new_game(game_state, true);
+        c_close_menu();
+        break;
     }
 }
 
-void process_menu(
-#if !OS_IS_MOBILE
+void process_menu(GameState *game_state,
+                  #if !OS_IS_MOBILE
                   u8 keys
-#else
+                  #else
                   Vec2 point
-#endif
-){
+                  #endif
+                  ){
 #if !OS_IS_MOBILE
     const float key_wait_time = 0.1f;
     if(keys & frame_key_up){
@@ -76,7 +76,7 @@ void process_menu(
     if(keys & frame_key_space){
         if(holding_key_times[4] > 0.f) holding_key_times[4] -= TIME_STEP;
         else{
-            select_menu_option();
+            select_menu_option(game_state);
         }
     }else holding_key_times[4] = -1.f;
 #else
@@ -112,7 +112,7 @@ void process_menu(
     disabled_options[5] = false;
 #endif
 }
-void draw_menu(){
+void draw_menu(GameState *game_state){
     // Update buffers
     
     start_temp_alloc();
@@ -120,7 +120,7 @@ void draw_menu(){
     
     String title_string;
     title_string.allocator = &temporary_storage.allocator;
-    title_string = "a laggy\ngame\n";
+    title_string = "game\nof flag\n";
     vert_num += text_vert_num(title_string);
     
     String options_strings[menu_total_options];
@@ -158,7 +158,7 @@ void draw_menu(){
     time_string.allocator = &temporary_storage.allocator;
     char time_sc_0[30], time_sc_1[30];
     {
-        float time = player.shown_time;
+        float time = game_state->game_time;
         if(time < 60.)
             sprintf(time_sc_0, "%.2lf ", time);
         else if(time < 3600.){
@@ -172,7 +172,7 @@ void draw_menu(){
             sprintf(time_sc_0, "%i:%02i:%05.2lf ", h, min%60, time-min*60.);
         }
     } {
-        float time = player.best_time;
+        float time = game_state->stats.best_time;
         if(time < 60.)
             sprintf(time_sc_1, "%.2lf ", time);
         else if(time < 3600.){

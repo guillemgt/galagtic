@@ -1,0 +1,40 @@
+version(1);
+
+project_name = "lag";
+
+patterns = {
+"*.cpp",
+"*.hpp",
+"*.c",
+"*.h",
+"*.bat",
+"*.4coder"
+};
+blacklist_patterns = {
+".git/*"
+};
+load_paths = {
+	{ .paths = {
+				{"."}
+				}, .
+os = "win" }
+};
+
+command_list = {
+  { .name = "build_wasm",
+	.out = "*compilation*", .footer_panel = true, .save_any_dirty_files = true, .cursor_at_end = false,
+	.cmd = { { "lag-wasm\\build.bat", .os = "win" }, },
+  },
+  { .name = "build",
+	.out = "*compilation*", .footer_panel = true, .save_any_dirty_files = true, .cursor_at_end = false,
+	.cmd = { { "lag-windows\\build.bat", .os = "win" }, },
+  },
+  { .name = "run",
+	.out = "*run*", .footer_panel = true, .save_any_dirty_files = false, .cursor_at_end = true,
+	.cmd = { { "start /D run_tree\\ lag-windows\\build\\lag.exe", .os = "win" }, },
+  },
+};
+
+fkey_command[3] = "build_wasm";
+fkey_command[1] = "build";
+fkey_command[2] = "run";

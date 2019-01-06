@@ -5,12 +5,12 @@
 
 void select_menu_option();
 #if !OS_IS_MOBILE
-void process_menu(u8 keys);
+void process_menu(GameState *game_state, u8 keys);
 #else
-void process_menu(Vec2 point);
-void select_menu(Vec2 point);
+void process_menu(GameState *game_state, Vec2 point);
+void select_menu(GameState *game_state, Vec2 point);
 #endif
-void draw_menu();
+void draw_menu(GameState *game_state);
 
 #if OS_IS_DESKTOP
 const int menu_total_options = 6;

@@ -23,20 +23,15 @@ const int max_level_width  = 30;
 const int max_level_height = 20;
 const int max_levels = 25;
 
-extern int  level_width;
-extern int  level_height;
-extern char **level_layout, **level_moving_layout;
-const RgbaColor level_color = {200, 210, 200, 255};
+const float time_after_flag_is_down = 0.5f;
+
+const RgbaColor level_color = {0, 0, 20, 255};
 extern u16  block_info[256];
-extern Vec2 goal_position;
 
-extern int levels_num;
-extern int current_level;
-
-void load_world();
-void load_level_into_buffer(BufferAndCount *buffer, BufferAndCount *t_buffer);
-void load_changing_level_into_buffer(BufferAndCount *buffer);
-void load_goal_into_buffer(BufferAndCount *buffer, BufferAndCount *loading_buffer);
-void load_level(int num);
+void load_world(GameState *game_state);
+void load_level_into_buffer(Level *level, BufferAndCount *buffer, BufferAndCount *t_buffer);
+void load_changing_level_into_buffer(Level *level, BufferAndCount *buffer);
+void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer);
+void load_level(GameState *game_state, int num);
 
 #endif /* world_hpp */

@@ -31,7 +31,7 @@ struct {
 } ptca_program;
 
 BufferAndCount level_buffer;
-BufferAndCount level_changing_buffer;
+BufferAndCount level_changing_buffers[2];
 BufferAndCount level_moving_buffer;
 BufferAndCount goal_buffer;
 BufferAndCount loading_buffer;
@@ -47,7 +47,7 @@ BufferAndCount buttons_buffer;
 
 
 GLuint level_vao;
-GLuint level_changing_vao;
+GLuint level_changing_vaos[2];
 GLuint level_moving_vao;
 GLuint goal_vao;
 GLuint loading_vao;
@@ -83,7 +83,7 @@ void init_openGL(){
     // We read the wall shaders
     const char wall_shader[] =
 #include "Shaders/pca_shader.glsl"
-    ;
+        ;
     pca_program.id = load_shaders_by_text(wall_shader);
     pca_program.position = glGetAttribLocation (pca_program.id, "a_position");
     pca_program.color    = glGetAttribLocation (pca_program.id, "a_color");
@@ -91,7 +91,7 @@ void init_openGL(){
     
     const char pt_shader[] =
 #include "Shaders/pt_shader.glsl"
-    ;
+        ;
     pt_program.id = load_shaders_by_text(pt_shader);
     pt_program.position   = glGetAttribLocation (pt_program.id, "a_position");
     pt_program.tex_coords = glGetAttribLocation (pt_program.id, "a_tex_coords");
@@ -101,7 +101,7 @@ void init_openGL(){
     
     const char ptt_shader[] =
 #include "Shaders/ptt_shader.glsl"
-    ;
+        ;
     ptt_program.id = load_shaders_by_text(ptt_shader);
     ptt_program.position   = glGetAttribLocation (ptt_program.id, "a_position");
     ptt_program.tex_coords = glGetAttribLocation (ptt_program.id, "a_tex_coords");
@@ -113,7 +113,7 @@ void init_openGL(){
     
     const char pta_shader[] =
 #include "Shaders/pta_shader.glsl"
-    ;
+        ;
     pta_program.id = load_shaders_by_text(pta_shader);
     pta_program.position   = glGetAttribLocation (pta_program.id, "a_position");
     pta_program.tex_coords = glGetAttribLocation (pta_program.id, "a_tex_coords");
@@ -122,7 +122,7 @@ void init_openGL(){
     
     const char ptca_shader[] =
 #include "Shaders/ptca_shader.glsl"
-    ;
+        ;
     ptca_program.id = load_shaders_by_text(ptca_shader);
     ptca_program.position   = glGetAttribLocation (ptca_program.id, "a_position");
     ptca_program.tex_coords = glGetAttribLocation (ptca_program.id, "a_tex_coords");
@@ -132,7 +132,8 @@ void init_openGL(){
     
     // We initialize the buffers
     glGenBuffers(1, &level_buffer.buffer);
-    glGenBuffers(1, &level_changing_buffer.buffer);
+    glGenBuffers(1, &level_changing_buffers[0].buffer);
+    glGenBuffers(1, &level_changing_buffers[1].buffer);
     glGenBuffers(1, &level_moving_buffer.buffer);
     glGenBuffers(1, &goal_buffer.buffer);
     glGenBuffers(1, &loading_buffer.buffer);
@@ -157,14 +158,16 @@ void init_openGL(){
     glVertexAttribPointer(pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
     check_openGL_error();
     
-    glGenVertexArrays(1, &level_changing_vao);
-    glBindVertexArray(level_changing_vao);
-    glEnableVertexAttribArray(pca_program.position);
-    glEnableVertexAttribArray(pca_program.color);
-    glBindBuffer(GL_ARRAY_BUFFER, level_changing_buffer.buffer);
-    glVertexAttribPointer(pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
-    glVertexAttribPointer(pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    for(int i=0; i<2; i++){
+        glGenVertexArrays(1, &level_changing_vaos[i]);
+        glBindVertexArray(level_changing_vaos[i]);
+        glEnableVertexAttribArray(pca_program.position);
+        glEnableVertexAttribArray(pca_program.color);
+        glBindBuffer(GL_ARRAY_BUFFER, level_changing_buffers[0].buffer);
+        glVertexAttribPointer(pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
+        glVertexAttribPointer(pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
+        check_openGL_error();
+    }
     
     glGenVertexArrays(1, &level_moving_vao);
     glBindVertexArray(level_moving_vao);
@@ -230,7 +233,7 @@ void init_openGL(){
     glVertexAttribPointer(ptca_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PTCa), (void *)offsetof(Vertex_PTCa, t));
     glVertexAttribPointer(ptca_program.color,      4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PTCa), (void *)offsetof(Vertex_PTCa, c));
     check_openGL_error();
-
+    
     glGenVertexArrays(1, &ui_textures_vao);
     glBindVertexArray(ui_textures_vao);
     glEnableVertexAttribArray(pt_program.position);
@@ -287,8 +290,7 @@ void init_openGL(){
     
     change_window_size();
     
-    load_level_into_buffer(&level_buffer, &noise_buffer);
-    load_level_into_buffer(&level_moving_buffer, nullptr);
+    //load_level_into_buffer(game_state, &level_buffer, &noise_buffer);
     
     check_openGL_error();
     
@@ -339,17 +341,25 @@ void print_render_time(){
 #define check_openGL_error()
 #endif
 
-void draw_scene(){
+void draw_scene(GameState *game_state, bool should_redraw_level, bool should_redraw_state){
     start_time();
-    load_player_into_buffer(&player_buffer); // This must be first, because it sets rendered_player
-    load_particles_into_buffer(&particle_buffer);
-    load_goal_into_buffer(&goal_buffer, &loading_buffer);
-    if(should_new_level){
-        load_level_into_buffer(&level_buffer, &noise_buffer);
-        load_level_into_buffer(&level_moving_buffer, nullptr);
-        load_changing_level_into_buffer(&level_changing_buffer);
-    }else if(should_update_level){
-        load_changing_level_into_buffer(&level_changing_buffer);
+    
+    PlayerSnapshot *rendered_player = &game_state->rendered_player;
+    
+    load_player_into_buffer(game_state, &player_buffer); // This must be first, because it sets rendered_player
+    load_particles_into_buffer(game_state, &particle_buffer);
+    load_goal_into_buffer(game_state, &goal_buffer);
+    static int drawn_level_state;
+    if(should_redraw_level){
+        load_level_into_buffer(&game_state->level, &level_buffer, &noise_buffer);
+        load_changing_level_into_buffer(&game_state->level, &level_changing_buffers[0]);
+        change_level_state(&game_state->level);
+        load_changing_level_into_buffer(&game_state->level, &level_changing_buffers[1]);
+        change_level_state(&game_state->level);
+        
+        memcpy(&game_state->lagged_level, &game_state->next_lagged_level, sizeof(LaggedLevel));
+    }else if(should_redraw_state){
+        drawn_level_state = 1-drawn_level_state;
     }
     
     Mat4 final_matrix;
@@ -409,8 +419,8 @@ void draw_scene(){
                 int i = kc/texture_size;
                 int j = kc%texture_size;
                 u8 r = rands[0][i][j] + rands[1][i/2][j/2] + rands[2][i/4][j/4] + rands[3][i/8][j/8] + rands[4][i/16][j/16];
-                image_data[k++] = level_color.r+r;
-                image_data[k++] = level_color.g+r;
+                image_data[k++] = level_color.r;
+                image_data[k++] = level_color.g;
                 image_data[k++] = level_color.b+r;
             }
             glActiveTexture(GL_TEXTURE1);
@@ -473,7 +483,7 @@ void draw_scene(){
     if(noise_buffer.count > 0){
         glUniform1i(ptt_program.sampler0, 1);
         glUniform1i(ptt_program.sampler1, 3);
-        glUniform1f(ptt_program.t, rendered_player.time);
+        glUniform1f(ptt_program.t, game_state->time);
         glBindVertexArray(noise_vao);
         glDrawArrays(GL_TRIANGLES, 0, noise_buffer.count);
         check_openGL_error();
@@ -496,7 +506,7 @@ void draw_scene(){
         glDrawArrays(GL_TRIANGLES, 0, ui_textures_buffer.count);
         check_openGL_error();
     }
-
+    
     glUseProgram(pca_program.id);
     glUniformMatrix4fv(pca_program.matrix, 1, GL_FALSE, &final_matrix.values[0][0]);
     
@@ -505,9 +515,9 @@ void draw_scene(){
         glDrawArrays(GL_TRIANGLES, 0, level_buffer.count);
         check_openGL_error();
     }
-    if(level_changing_buffer.count > 0){
-        glBindVertexArray(level_changing_vao);
-        glDrawArrays(GL_TRIANGLES, 0, level_changing_buffer.count);
+    if(level_changing_buffers[drawn_level_state].count > 0){
+        glBindVertexArray(level_changing_vaos[drawn_level_state]);
+        glDrawArrays(GL_TRIANGLES, 0, level_changing_buffers[drawn_level_state].count);
         check_openGL_error();
     }
     if(goal_buffer.count > 0){
@@ -529,38 +539,11 @@ void draw_scene(){
         check_openGL_error();
     }
     
-    if(level_moving_buffer.count > 0){
-        Mat4 matrix = final_matrix * get_translation_matrix(Vec3(0.f, rendered_player.level_moving_y, 0.f));
-        glUniformMatrix4fv(pca_program.matrix, 1, GL_FALSE, &matrix.values[0][0]);
-        glBindVertexArray(level_moving_vao);
-        glDrawArrays(GL_TRIANGLES, 0, level_moving_buffer.count);
-        check_openGL_error();
-    }
-    
     {
         start_temp_alloc();
         u32 vert_num = 0;
         
-        String loading_level_string;
-        loading_level_string.allocator = &temporary_storage.allocator;
-        RgbaColor loading_level_color;
-        float loading_shown_level_size_mult; // @Todo: if this is always 0.5f, don't make it a variable
-        if(rendered_player.completed_level){
-            loading_level_string = "Loading level...";
-            loading_level_color = {255, 255, 255, 255};
-            loading_shown_level_size_mult = 0.5f;
-        }else if(rendered_player.cancel_next_level_in > 0.f){
-            loading_level_string = "Cancelled";
-            loading_level_color = {255, 50, 50, (u8)(MIN(rendered_player.cancel_next_level_in, 1.f)*255)};
-            loading_shown_level_size_mult = 0.5f;
-        }else{
-            loading_level_string = "";
-            loading_level_color = {255, 255, 255, 0};
-            loading_shown_level_size_mult = 0.5f;
-        }
-        vert_num += text_vert_num(loading_level_string);
-        
-        float time = player.shown_time;
+        float time = game_state->time;
         
         String time_string;
         time_string.allocator = &temporary_storage.allocator;
@@ -583,10 +566,10 @@ void draw_scene(){
         String lives_string;
         lives_string.allocator = &temporary_storage.allocator;
         char lives_sc[30];
-        if(player.lives >= 0)
-            sprintf(lives_sc, "   x%i", player.lives);
+        if(game_state->player_lives >= 0)
+            sprintf(lives_sc, "   x%i", game_state->player_lives);
         else
-            sprintf(lives_sc, "   x(%i)", player.lives);
+            sprintf(lives_sc, "   x(%i)", game_state->player_lives);
         lives_string = lives_sc;
         vert_num += text_vert_num(lives_string);
         
@@ -597,7 +580,6 @@ void draw_scene(){
         float spb = screen_portion_of_ui_bottom * actual_screen_ratio;
         float spt = screen_portion_of_ui_top    * actual_screen_ratio;
         
-        verts += render_text(0.5f*spb, 0.5f*spb, -0.9f, FONT_QUALITY_64, loading_level_string, verts, loading_shown_level_size_mult*spb, NULL, NULL, loading_level_color, TEXT_ALIGN_BOTTOM);
         float time_width;
         Vertex_PTCa *verts_time = verts + render_text_monospace(1.f, actual_screen_ratio+0.2f*spt, -0.9f, FONT_QUALITY_64, time_string, verts, spt, &time_width, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
         while(verts < verts_time){
@@ -605,7 +587,7 @@ void draw_scene(){
             verts++;
         }
         verts += render_text_monospace(0.f, actual_screen_ratio+0.2f*spt, -0.9f, FONT_QUALITY_64, lives_string, verts, spt, NULL, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
-    
+        
         text_buffer.count = vert_num;
         set_buffer_data_static(text_buffer.buffer, o_verts, text_buffer.count);
         
@@ -688,8 +670,9 @@ void draw_scene(){
 }
 
 void change_window_size(){
-    actual_screen_size.x = window_size.x;
-    actual_screen_size.y = window_size.y;
+    printf("%i %i\n", window_size.x, window_size.y);
+    actual_screen_size.x = (f32)window_size.x;
+    actual_screen_size.y = (f32)window_size.y;
     screen_size.x = actual_screen_size.x;
     screen_size.y = (1.f - screen_portion_of_ui_top - screen_portion_of_ui_bottom)*actual_screen_size.y;
     actual_screen_ratio = actual_screen_size.y / actual_screen_size.x;
@@ -712,7 +695,7 @@ void change_window_size(){
         const float current_frame_y = 0.f;
         float xmargin = 0.9f*screen_portion_of_ui_top*actual_screen_ratio;
         float ymargin = (1.f-0.9f*screen_portion_of_ui_top)*actual_screen_ratio;
-        float pun = 0.8*screen_portion_of_ui_top*actual_screen_ratio;
+        float pun = 0.8f*screen_portion_of_ui_top*actual_screen_ratio;
         Vec2 t00, t01, t10, t11;
         t00 = Vec2(current_frame_x*outer_picture_size+picture_margin, current_frame_y*outer_picture_size+picture_margin)/texture_size;
         t10 = t00+Vec2(inner_picture_size/texture_size, 0.f);

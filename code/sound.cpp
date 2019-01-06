@@ -7,10 +7,12 @@ bool sound_on = true;
 #if OS != OS_IOS
 
 #include "basecode/sdl2.hpp"
-#if OS != OS_WASM
-#include <SDL2_mixer/SDL_mixer.h>
-#else
+#if OS == OS_WASM
 #include <SDL/SDL_mixer.h>
+#elif OS == OS_WINDOWS
+#include <SDL2/SDL_mixer.h>
+#else
+#include <SDL2_mixer/SDL_mixer.h>
 #endif
 
 const int sounds_size = 6;

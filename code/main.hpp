@@ -12,12 +12,12 @@ extern "C" {
 #endif
 }
 
-void new_game(bool newer_game);
-void continue_game();
-void save_game();
-void load_game();
+void new_game(GameState *game_state, bool newer_game);
+void continue_game(GameState *game_state);
+void save_game(GameState *game_state);
+void load_game(GameState *game_state);
 
-extern bool should_update_level, should_new_level, should_save_game;
+extern bool should_save_game;
 extern bool game_started, game_started_this_run;
 extern int game_mode;
 const int GAME_MODE_PLAY  = 0;
@@ -31,7 +31,7 @@ extern float input_lag_time, visual_lag_time, particle_lag_time, sound_lag_time;
 #endif /* main_h */
 
 /*
- 
+
  TODO LIST
  * Make visiting short distance images work
  * Add quality "slider"
