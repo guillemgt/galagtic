@@ -3,3 +3,8 @@ lag-wasm/before.sh
 *.exe
 *.ilk
 *.pdb
+*.obj
+*/x64/
+*/build/
+*/.DS_Store
+*/save
