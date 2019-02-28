@@ -8,7 +8,7 @@ struct Player {
     Vec2 r, v;
     u32 flags;
     int at_platform;
-    float jump_height, time_to_unstick, gravity_extra;
+    float jump_height, time_to_unstick;
     
     bool space_was_up = false;
 };
@@ -92,19 +92,9 @@ struct Particle {
 
 const int MAX_ENEMIES = 16;
 const int MAX_PLATFORMS = 8;
-const int MAX_GATES = 8;
 
 #define MAX_PARTICLES 9000
 #define MAX_UPS 120 // Updates Per Second
-
-const u8 GF_HORIZONTAL = 0x01;
-const u8 GF_VISITED    = 0x02;
-const u8 GF_IMMORTAL   = 0x04;
-struct Gate {
-    Vec2 r;
-    float state;
-    u8 flags;
-};
 
 struct Level {
     int width, height;
@@ -117,25 +107,17 @@ struct Level {
     int num;
 };
 struct LaggedLevel {
-    Vec2 key_r;
+    float flag_x, flag_y, flag_base_y, flag_top_y;
     StaticArray<Vec2, MAX_PLATFORMS> platform_sizes;
-    StaticArray<Gate, MAX_GATES>     gates;
-};
-
-
-
-struct PlatformInfo {
-    Vec2 r, v;
 };
 
 struct LevelInfo {
-    StaticArray<Vec2, MAX_ENEMIES>           enemies;
-    StaticArray<PlatformInfo, MAX_PLATFORMS> platforms;
+    StaticArray<Vec2, MAX_ENEMIES>   enemies;
+    StaticArray<Vec2, MAX_PLATFORMS> platforms;
     Vec2i size;
-    Vec2 start, start_first_time;
+    Vec2 start;
     char layout[max_level_width][max_level_height];
 };
-extern LevelInfo all_levels[];
 
 void change_level_state(Level *level);
 void reset_player(LevelInfo *level_info, Player *player, Level *level);
@@ -147,10 +129,5 @@ void process_movement(GameState *game_state, u8 keys);
 void init_messages(GameState *game_state);
 void process_messages(GameState *game_state);
 
-struct PlayerRenderingInfo {
-    int current_frame_x = 0;
-    int current_frame_y = 0;
-    int time_in_current_frame = 0;
-};
 
 #endif /* player_hpp */

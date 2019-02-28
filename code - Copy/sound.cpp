@@ -62,10 +62,9 @@ void cleanup_sound(SoundInfo *sound){
 }
 
 void play_sound(SoundInfo *sound, u8 sound_index){
-    /*
     if(!sound->on)
         return;
-    Mix_PlayChannel(-1, sound->sounds[sound_index], 0);*/
+    //Mix_PlayChannel(-1, sound->sounds[sound_index], 0);
 }
 
 #else

@@ -81,7 +81,6 @@ void init_openGL(GameState *game_state){
     glGenBuffers(1, &gl->text_buffer.buffer);
     glGenBuffers(1, &gl->ui_textures_buffer.buffer);
     glGenBuffers(1, &gl->tmp_buffer.buffer);
-    glGenBuffers(1, &gl->planet_buffer.buffer);
 #if OS == OS_IOS
     glGenBuffers(1, &gl->buttons_buffer.buffer);
 #endif
@@ -102,7 +101,7 @@ void init_openGL(GameState *game_state){
         glBindVertexArray(gl->level_changing_vaos[i]);
         glEnableVertexAttribArray(gl->pca_program.position);
         glEnableVertexAttribArray(gl->pca_program.color);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->level_changing_buffers[i].buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, gl->level_changing_buffers[0].buffer);
         glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
         glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
         check_openGL_error();
@@ -193,15 +192,6 @@ void init_openGL(GameState *game_state){
     check_openGL_error();
 #endif
     
-    glGenVertexArrays(1, &gl->planet_vao);
-    glBindVertexArray(gl->planet_vao);
-    glEnableVertexAttribArray(gl->pt_program.position);
-    glEnableVertexAttribArray(gl->pt_program.tex_coords);
-    glBindBuffer(GL_ARRAY_BUFFER, gl->planet_buffer.buffer);
-    glVertexAttribPointer(gl->pt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)0);
-    glVertexAttribPointer(gl->pt_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)(sizeof(Vec3)));
-    check_openGL_error();
-    
     glBindVertexArray(0);
     check_openGL_error();
     
@@ -213,12 +203,19 @@ void init_openGL(GameState *game_state){
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     check_openGL_error();
     
+    GLuint noise_texture;
     glActiveTexture(GL_TEXTURE1);
-    GLuint texture2;
-    get_game_file_path("Textures/planet.png", path);
-    load_texture(&texture2, path);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    check_openGL_error();
+    glGenTextures(1, &noise_texture);
+    glBindTexture(GL_TEXTURE_2D, noise_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    
+    GLuint noise_texture_2;
+    glActiveTexture(GL_TEXTURE3);
+    glGenTextures(1, &noise_texture_2);
+    glBindTexture(GL_TEXTURE_2D, noise_texture_2);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     
     change_window_size(game_state);
     
@@ -273,7 +270,7 @@ void print_render_time(){
 #define check_openGL_error()
 #endif
 
-void draw_scene(GameState *game_state, bool should_redraw_level){
+void draw_scene(GameState *game_state, bool should_redraw_level, bool should_redraw_state){
     start_time();
     
     GLObjects *gl = &game_state->gl_objects;
@@ -282,6 +279,7 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
     load_player_into_buffer(game_state, &gl->player_buffer); // This must be first, because it sets rendered_player
     load_particles_into_buffer(game_state, &gl->particle_buffer);
     load_goal_into_buffer(game_state, &gl->goal_buffer);
+    static int drawn_level_state;
     if(should_redraw_level){
         load_level_into_buffer(game_state, &gl->level_buffer, &gl->noise_buffer);
         load_changing_level_into_buffer(&game_state->level, &gl->level_changing_buffers[0]);
@@ -290,8 +288,8 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         change_level_state(&game_state->level);
         
         memcpy(&game_state->lagged_level, &game_state->next_lagged_level, sizeof(LaggedLevel));
-        gl->drawn_level_state = 0;
-        load_planet_background(&game_state->level, &gl->planet_buffer);
+    }else if(should_redraw_state){
+        drawn_level_state = 1-drawn_level_state;
     }
     
     Mat4 final_matrix;
@@ -318,6 +316,90 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
     
     Mat4 ui_matrix = get_translation_matrix(Vec3(-1.f, -1.f, 0.f)) * get_scale_matrix(2.f, 2.f/gl->actual_screen_ratio, 1.f);
     
+    {
+        const int texture_size = 32;
+        const float freq = 4.f/60.f;
+        static float time = 0.f;
+        time += TIME_STEP/4.f;
+        if(time > 0.f){
+            static u8 rands[5][texture_size][texture_size];
+            static bool fice = true;
+            if(fice){
+                for(int d=1, dc=0; dc<=5; d*=2, dc++){
+                    int s = texture_size/d;
+                    for(int i=0; i<s; i++){
+                        for(int j=0; j<s; j++){
+                            rands[dc][i][j] = rand()%8;
+                        }
+                    }
+                }
+                fice = false;
+            }
+            /*for(int t=0; t<1; t++){
+             for(int d=1, dc=0; d<=4; d*=2, dc++){
+             int s = texture_size/d;
+             int i = rand()%s;
+             int j = rand()%s;
+             rands[dc][i][j] = rand()%10;
+             }
+             }*/
+            
+            GLubyte image_data[3*texture_size*texture_size];
+            for(int k=0, kc=0; k<3*texture_size*texture_size; kc++){
+                int i = kc/texture_size;
+                int j = kc%texture_size;
+                u8 r = rands[0][i][j] + rands[1][i/2][j/2] + rands[2][i/4][j/4] + rands[3][i/8][j/8] + rands[4][i/16][j/16];
+                image_data[k++] = level_color.r;
+                image_data[k++] = level_color.g;
+                image_data[k++] = level_color.b+r;
+            }
+            glActiveTexture(GL_TEXTURE1);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_size, texture_size, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data);
+            time -= freq;
+        }
+    }{
+        const int texture_size = 32;
+        const float freq = 4.f/60.f;
+        static float time = 0.f;
+        time += TIME_STEP/4.f;
+        if(time > 0.f){
+            static u8 rands[5][texture_size][texture_size];
+            static bool fice = true;
+            if(fice){
+                for(int d=1, dc=0; dc<=5; d*=2, dc++){
+                    int s = texture_size/d;
+                    for(int i=0; i<s; i++){
+                        for(int j=0; j<s; j++){
+                            rands[dc][i][j] = rand()%8;
+                        }
+                    }
+                }
+                fice = false;
+            }
+            /*for(int t=0; t<1; t++){
+             for(int d=1, dc=0; d<=4; d*=2, dc++){
+             int s = texture_size/d;
+             int i = rand()%s;
+             int j = rand()%s;
+             rands[dc][i][j] = rand()%10;
+             }
+             }*/
+            
+            GLubyte image_data[3*texture_size*texture_size];
+            for(int k=0, kc=0; k<3*texture_size*texture_size; kc++){
+                int i = kc/texture_size;
+                int j = kc%texture_size;
+                u8 r = rands[0][i][j] + rands[1][i/2][j/2] + rands[2][i/4][j/4] + rands[3][i/8][j/8] + rands[4][i/16][j/16];
+                image_data[k++] = level_color.r+r;
+                image_data[k++] = level_color.g+r;
+                image_data[k++] = level_color.b+r;
+            }
+            glActiveTexture(GL_TEXTURE3);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_size, texture_size, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data);
+            time -= freq;
+        }
+    }
+    
     print_time(00);
     
     glClearColor(basic_color.r/255.f, basic_color.g/255.f, basic_color.b/255.f, 1.f);
@@ -341,13 +423,6 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
     glUniformMatrix4fv(gl->pt_program.matrix, 1, GL_FALSE, &final_matrix.values[0][0]);
     glUniform3f(gl->pt_program.color_multiplier, 1.f, t, t);
     
-    if(gl->planet_buffer.count > 0){
-        glUniform1i(gl->pt_program.sampler, 1);
-        glBindVertexArray(gl->planet_vao);
-        glDrawArrays(GL_TRIANGLES, 0, gl->planet_buffer.count);
-        check_openGL_error();
-    }
-    
     if(gl->player_buffer.count > 0){
         glUniform1i(gl->pt_program.sampler, 0);
         glBindVertexArray(gl->player_vao);
@@ -370,9 +445,9 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         glDrawArrays(GL_TRIANGLES, 0, gl->level_buffer.count);
         check_openGL_error();
     }
-    if(gl->level_changing_buffers[gl->drawn_level_state].count > 0){
-        glBindVertexArray(gl->level_changing_vaos[gl->drawn_level_state]);
-        glDrawArrays(GL_TRIANGLES, 0, gl->level_changing_buffers[gl->drawn_level_state].count);
+    if(gl->level_changing_buffers[drawn_level_state].count > 0){
+        glBindVertexArray(gl->level_changing_vaos[drawn_level_state]);
+        glDrawArrays(GL_TRIANGLES, 0, gl->level_changing_buffers[drawn_level_state].count);
         check_openGL_error();
     }
     if(gl->goal_buffer.count > 0){

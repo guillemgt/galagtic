@@ -22,13 +22,8 @@
 #include "menu.cpp"
 
 #define LAGGY 1
-const float lag_time = 0.8f;
-
-GameState *global_game_state;
 
 int init_game(GameState *game_state){
-    global_game_state = game_state;
-    
     char path[MAX_PATH_LENGTH];
     get_game_file_path("Textures/Quicksand.ttf", path);
     load_font(path);
@@ -59,18 +54,17 @@ void new_game(GameState *game_state, bool newer_game){
     // New game
     game_state->player_lives = 3;
     game_state->time = 0.f;
-    
-    game_state->space_lagged = newer_game;
-#if !LAGGY
+    //player.space_lagged = newer_game;
+#if 1
     game_state->input_lag_time = 0.f;
     game_state->render_lag_time = 0.f;
 #else
-    if(game_state->space_lagged){
-        game_state->input_lag_time = lag_time;
+    if(newer_game){
+        game_state->input_lag_time = 2.f/3.f;
         game_state->render_lag_time = 0.f;
     }else{
         game_state->input_lag_time = 0.f;
-        game_state->render_lag_time = lag_time;
+        game_state->render_lag_time = 2.f/3.f;
     }
 #endif
     
@@ -85,19 +79,6 @@ void continue_game(GameState *game_state){
     game_state->game_started_this_run = true;
     
     game_state->time = 0.f;
-    
-#if !LAGGY
-    game_state->input_lag_time = 0.f;
-    game_state->render_lag_time = 0.f;
-#else
-    if(game_state->space_lagged){
-        game_state->input_lag_time = lag_time;
-        game_state->render_lag_time = 0.f;
-    }else{
-        game_state->input_lag_time = 0.f;
-        game_state->render_lag_time = lag_time;
-    }
-#endif
     
     load_level(game_state, game_state->loaded_save_level);
     game_state->should_save_game = false;
@@ -124,16 +105,17 @@ static int actionsThisSecond = 0;
 
 extern "C" {
     void c_close_menu(){
-        global_game_state->game_mode = GAME_MODE_PLAY;
+        //game_mode = GAME_MODE_PLAY;
 #if OS == OS_WASM
         js_hide_menu();
 #endif
     }
     
     void c_open_menu(){
-        global_game_state->game_mode = GAME_MODE_MENU;
-        global_game_state->menu_info.selected_option = 0;
-        while(global_game_state->menu_info.disabled_options[global_game_state->menu_info.selected_option]) global_game_state->menu_info.selected_option++;
+        /*game_mode = GAME_MODE_MENU;
+        menu_selected_option = 0;
+        while(disabled_options[menu_selected_option]) menu_selected_option++;
+        */
 #if OS == OS_WASM
         js_show_menu();
 #endif
@@ -142,7 +124,6 @@ extern "C" {
 
 extern BufferAndCount picture_buffer;
 int game_loop(GameState *game_state, bool keys[KEYS_NUM], StaticArray<Event, MAX_EVENTS_PER_LOOP> events){
-    global_game_state = game_state;
 #if MEASURE_TIME
     auto lastFrame = std::chrono::high_resolution_clock::now();
 #endif
@@ -154,13 +135,8 @@ int game_loop(GameState *game_state, bool keys[KEYS_NUM], StaticArray<Event, MAX
             case EVENT_RESIZE: {
                 change_window_size(game_state);
             } break;
-            case EVENT_CLOSE: {
-                return 0;
-            } break;
         }
     }
-    
-    bool was_in_play_mode = game_state->game_mode == GAME_MODE_PLAY;
     
     static bool esc_pressed = false;
     if(keys[KEYS_ESC]){
@@ -206,16 +182,12 @@ int game_loop(GameState *game_state, bool keys[KEYS_NUM], StaticArray<Event, MAX
         if(keys[KEYS_DOWN])  current_keys |= frame_key_down;
         if(keys[KEYS_LEFT])  current_keys |= frame_key_left;
         if(keys[KEYS_SPACE]) current_keys |= frame_key_space;
-#if DEVMODE
     }
-#endif
     if(game_state->game_mode == GAME_MODE_PLAY){
         static auto last_actions_time = std::chrono::high_resolution_clock::now();
         auto this_actions_time = std::chrono::high_resolution_clock::now();
         static double time_since_last_action = 0.f;
         time_since_last_action += ((std::chrono::duration<double, std::milli>)(this_actions_time-last_actions_time)).count()*0.001;
-        if(!was_in_play_mode)
-            time_since_last_action = TIME_STEP;
         last_actions_time = this_actions_time;
         while(time_since_last_action >= TIME_STEP){
 #if LAGGY
@@ -239,8 +211,8 @@ int game_loop(GameState *game_state, bool keys[KEYS_NUM], StaticArray<Event, MAX
                 practical_keys = frame_keys[next_full_slot].keys;
                 next_full_slot = (next_full_slot + 1) % slots;
             }
-            if(game_state->space_lagged)
-                practical_keys = (practical_keys & (~frame_key_space)) | (current_keys & frame_key_space);
+            if(false) //player.space_lagged)
+                practical_keys = (practical_keys & (0xff ^ frame_key_space)) | (current_keys & frame_key_space);
 #else
             u8 practical_keys = current_keys;
 #endif
@@ -319,7 +291,7 @@ void game_draw(GameState *game_state){
     timeThisSecond += (f32)time_elapsed.count();
     
     if(timeThisSecond > 1000.f){
-        printf("FPS: %i/%i (logic: %lg%%, drawing: %lg%%)\n", actionsThisSecond, framesThisSecond, logic_time, drawing_time);
+        //printf("FPS: %i/%i (logic: %lg%%, drawing: %lg%%)\n", actionsThisSecond, framesThisSecond, logic_time, drawing_time);
         framesThisSecond = 0;
         actionsThisSecond = 0;
         timeThisSecond = 0.f;
@@ -333,20 +305,16 @@ void game_draw(GameState *game_state){
     
     if(game_state->game_mode == GAME_MODE_PLAY){
         bool should_redraw_level = false;
-        
+        bool should_redraw_state = false;
+        if(game_state->draw_new_state_time < game_state->time){
+            game_state->draw_new_state_time = INFINITY;
+            should_redraw_state = true;
+        }
         if(game_state->draw_new_level_time < game_state->time){
             game_state->draw_new_level_time = INFINITY;
-            game_state->draw_new_state_time[0] = INFINITY;
-            game_state->draw_new_state_time[1] = INFINITY;
             should_redraw_level = true;
         }
-        for(int i=0; i<2; i++){
-            if(game_state->draw_new_state_time[i] < game_state->time){
-                game_state->draw_new_state_time[i] = INFINITY;
-                game_state->gl_objects.drawn_level_state = game_state->draw_new_state_state[i];
-            }
-        }
-        draw_scene(game_state, should_redraw_level);
+        draw_scene(game_state, should_redraw_level, should_redraw_state);
     }else{
         draw_menu(game_state);
     }
@@ -384,7 +352,7 @@ void save_game(GameState *game_state){
         write_file(&level, sizeof(i8), 1, fp);
         write_file(&game_state->time, sizeof(game_state->time), 1, fp);
         write_file(&game_state->player_lives, sizeof(game_state->player_lives), 1, fp);
-        write_file(&game_state->space_lagged, sizeof(game_state->space_lagged), 1, fp);
+        //write_file(&player.space_lagged, sizeof(player.space_lagged), 1, fp);
     }else{
         level = -1;
         write_file(&level, sizeof(i8), 1, fp);
@@ -403,7 +371,7 @@ void load_game(GameState *game_state){
         game_state->game_started = true;
         read_file(&game_state->time, sizeof(game_state->time), 1, fp);
         read_file(&game_state->player_lives, sizeof(game_state->player_lives), 1, fp);
-        read_file(&game_state->space_lagged, sizeof(game_state->space_lagged), 1, fp);
+        //read_file(&player.space_lagged, sizeof(player.space_lagged), 1, fp);
     }else
         game_state->game_started = false;
 }

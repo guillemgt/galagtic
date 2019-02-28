@@ -49,7 +49,6 @@ struct GLObjects {
     BufferAndCount text_buffer;
     BufferAndCount ui_textures_buffer;
     BufferAndCount tmp_buffer;
-    BufferAndCount planet_buffer;
 #if OS == OS_IOS
     BufferAndCount buttons_buffer;
 #endif
@@ -66,7 +65,6 @@ struct GLObjects {
     GLuint text_vao;
     GLuint ui_textures_vao;
     GLuint tmp_vao;
-    GLuint planet_vao;
 #if OS == OS_IOS
     GLuint buttons_vao;
 #endif
@@ -79,11 +77,10 @@ struct GLObjects {
     Vec2 actual_screen_size;
     float actual_screen_ratio;
     
-    int drawn_level_state;
 };
 
 void init_openGL(GameState *game_state);
-void draw_scene(GameState *game_state, bool should_redraw_level);
+void draw_scene(GameState *game_state, bool should_redraw_level, bool should_redraw_state);
 void change_window_size(GameState *game_state);
 
 #endif /* render_hpp */

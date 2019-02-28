@@ -16,8 +16,8 @@ blacklist_patterns = {
 load_paths = {
 	{ .paths = {
 				{"."}
-				}, .
-os = "win" }
+				},
+.os = "win" }
 };
 
 command_list = {

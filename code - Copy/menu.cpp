@@ -114,7 +114,7 @@ void draw_menu(GameState *game_state){
     
     String title_string;
     title_string.allocator = &temporary_storage.allocator;
-    title_string = "game\nof lag\n";
+    title_string = "game\nof flag\n";
     vert_num += text_vert_num(title_string);
     
     String options_strings[menu_total_options];

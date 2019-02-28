@@ -35,12 +35,11 @@ void main(){
  gl_FragColor = vec4(0.7, 0.7, 0.7, 1.0);
  return;
 }*/
-/*float t = 1.0;//0.5+0.5*sin(v_t);
+float t = 1.0;//0.5+0.5*sin(v_t);
  vec3  v = 0.5+0.5*sin(v_t*vec3(2.3, 1.94, 2.07) + vec3(0.21, 0.31, 0.11));
  v.x = 1.0;
-gl_FragColor = vec4(vec3(0.7) - vec3(0.07, 0.07, 0.01)*t*v, 1.0);*/
-    //gl_FragColor = vec4(u_color_multiplier, 1.0) * mix(texture2D(u_sampler0, v_tex_coords), texture2D(u_sampler1, v_tex_coords), sin(v_t));
-gl_FragColor = vec4(vec3(0.77, 0.75, 0.87), 1.0);
+gl_FragColor = vec4(vec3(0.7) - vec3(0.07, 0.07, 0.01)*t*v, 1.0);
+    //gl_FragColor = vec4(u_color_multiplier, 1.0) * mix(texture2D(u_sampler0, v_tex_coords), texture2D(u_sampler1, v_tex_coords), v_t);
 }
 
 #endif

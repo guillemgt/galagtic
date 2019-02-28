@@ -21,7 +21,7 @@ const int GAME_MODE_PLAY  = 0;
 const int GAME_MODE_MENU  = 1;
 const int GAME_MODE_START = 2;
 
-#define DEVMODE ENGINE_DEVMODE
+#define DEVMODE 1
 
 #endif /* main_h */
 
