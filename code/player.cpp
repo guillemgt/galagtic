@@ -50,6 +50,9 @@ void init_messages(GameState *game_state){
 		game_state->player_snapshots[i].time = INFINITY;
         game_state->completion_snapshots[i] = false;
     }
+    
+    game_state->next_free_snapshot = 0;
+    game_state->last_rendered_snapshot = 0;
 }
 void add_particle_message(GameState *game_state, Vec2 r, bool is_death){
     int next_free_slot = game_state->next_free_particle_slot;
@@ -189,6 +192,7 @@ void process_movement(GameState *game_state, u8 keys){
     
     bool moving = false;
     if(keys & frame_key_left){
+        player->flags |= PM_LOOKING_LEFT;
         if(player->flags & PM_WALL_JUMPING_LEFT){
             player->v.x -= after_wall_jump_acceleration*TIME_STEP;
         }else if(player->flags & PM_STICKING_TO_WALL_RIGHT){
@@ -214,6 +218,7 @@ void process_movement(GameState *game_state, u8 keys){
     }
     
     if(keys & frame_key_right){
+        player->flags &= ~PM_LOOKING_LEFT;
         if(player->flags & PM_WALL_JUMPING_RIGHT){
             player->v.x += after_wall_jump_acceleration*TIME_STEP;
         }else if(player->flags & PM_STICKING_TO_WALL_LEFT){
@@ -450,6 +455,13 @@ void process_movement(GameState *game_state, u8 keys){
     }
     Vec2 pr = player->r;
     
+    if(player->flags & PM_STICKING_TO_WALL_RIGHT){
+        player->flags |= PM_LOOKING_LEFT;
+    }
+    if(player->flags & PM_STICKING_TO_WALL_LEFT){
+        player->flags &= ~PM_LOOKING_LEFT;
+    }
+    
     //printf("(3) %g %g; %g %g\n", player.r.x, player.r.y, player.v.x, player.v.y);
     /*if(player.on_ground)
         player.sticking_to_wall = 0;
@@ -464,6 +476,8 @@ void process_movement(GameState *game_state, u8 keys){
         int y = (int)floorf(platforms[k].r.y + nv.y*platforms[k].size.y);
         if(block_info[level->layout[x][y]] & BLOCK_STOPS_PLATFORMS){
             platforms[k].v = -platforms[k].v;
+            if(level->layout[x][y] == '#')
+                add_sound_message(game_state, platforms[k].v > 0.f ? SOUND_TICK_0 : SOUND_TICK_1);
         }
     }
     
@@ -622,10 +636,13 @@ void process_movement(GameState *game_state, u8 keys){
     level->time += TIME_STEP;
     if(level->time >= 1.f){
         level->time -= 1.f;
-        change_level_state(level);
+        bool changed = change_level_state_and_return_if_changed(level);
         level->state = 1-level->state;
         game_state->draw_new_state_time[0] = game_state->time + game_state->render_lag_time;
         game_state->draw_new_state_state[0] = level->state;
+        
+        if(changed)
+            add_sound_message(game_state,  level->state ? SOUND_TICK_0 : SOUND_TICK_1);
     }
     
     if(level->completed){
@@ -654,6 +671,49 @@ void process_movement(GameState *game_state, u8 keys){
     process_messages(game_state);
 }
 
+void add_snapshot(GameState *game_state){
+    Level  *level  = &game_state->level;
+    auto &enemies = level->enemies;
+    auto &platforms = level->platforms;
+    
+    game_state->time += TIME_STEP;
+    
+    level->time += TIME_STEP;
+    if(level->time >= 1.f){
+        level->time -= 1.f;
+        level->state = 1-level->state;
+        game_state->draw_new_state_time[0] = game_state->time + game_state->render_lag_time;
+        game_state->draw_new_state_state[0] = level->state;
+    }
+    
+    for(int k=0; k<(int)platforms.size; k++){
+        platforms[k].r += TIME_STEP*platforms[k].v;
+        Vec2 nv = normalize(platforms[k].v);
+        int x = (int)floorf(platforms[k].r.x + nv.x*platforms[k].size.x);
+        int y = (int)floorf(platforms[k].r.y + nv.y*platforms[k].size.y);
+        if(block_info[level->layout[x][y]] & BLOCK_STOPS_PLATFORMS){
+            platforms[k].v = -platforms[k].v;
+        }
+    }
+    
+    for(uint k=0; k<enemies.size; k++){
+        enemies[k] += TIME_STEP*enemies_speed;
+        if(enemies[k].x < 0.5f) enemies[k].x += level_size.x-1.f;
+    }
+    
+    game_state->player_snapshots[game_state->next_free_snapshot] = {0.f, 0.f, game_state->time + game_state->render_lag_time, 0};
+    
+    game_state->enemies_snapshots[game_state->next_free_snapshot].size = enemies.size;
+    for(uint k=0; k<enemies.size; k++)
+        game_state->enemies_snapshots[game_state->next_free_snapshot][k] = enemies[k];
+    game_state->platforms_snapshots[game_state->next_free_snapshot].size = platforms.size;
+    for(uint k=0; k<platforms.size; k++)
+        game_state->platforms_snapshots[game_state->next_free_snapshot][k] = platforms[k].r;
+    game_state->completion_snapshots[game_state->next_free_snapshot] = level->completed;
+    
+    game_state->next_free_snapshot = (game_state->next_free_snapshot+1) % MAX_UPS;
+}
+
 void change_level_state(Level *level){
     for(int x=0; x<level->width; x++){
         for(int y=0; y<level->height; y++){
@@ -663,6 +723,21 @@ void change_level_state(Level *level){
                 level->layout[x][y] = 'a';
         }
     }
+}
+bool change_level_state_and_return_if_changed(Level *level){
+    bool changed = false;
+    for(int x=0; x<level->width; x++){
+        for(int y=0; y<level->height; y++){
+            if(level->layout[x][y] == 'a'){
+                level->layout[x][y] = 'b';
+                changed = true;
+            }else if(level->layout[x][y] == 'b'){
+                level->layout[x][y] = 'a';
+                changed = true;
+            }
+        }
+    }
+    return changed;
 }
 
 void reset_player(LevelInfo *level_info, Player *player, Level *level){
@@ -729,7 +804,7 @@ void process_messages(GameState *game_state){
                 for(int px=-6; px<6; px++){
                     for(int py=-16; py<16; py++){
                         Vec2 speed = (1.f + 7.f*rand()/RAND_MAX)*(Vec2)Angle(2.f*M_PI*rand()/RAND_MAX);
-                        particles[s++] = {Vec2(fx+px/30.f, fy+py/30.f), speed, {60, 60, 60, 255}, 0};
+                        particles[s++] = {Vec2(fx+px/30.f, fy+py/30.f), speed, {60, 60, 60, 255}};
                     }
                 }
                 
@@ -756,7 +831,7 @@ void process_messages(GameState *game_state){
                     for(int py=-6; py<6; py++){
                         int r = rand();
                         Vec2 speed = (1.f + 7.f*r/RAND_MAX)*(Vec2)Angle(2.f*M_PI*rand()/RAND_MAX);
-                        particles[s++] = {Vec2(fx+px/20.f, fy+py/20.f), speed, triangle_colors[r&7], 0};
+                        particles[s++] = {Vec2(fx+px/20.f, fy+py/20.f), speed, triangle_colors[r&7]};
                     }
                 }
             }
@@ -767,40 +842,27 @@ void process_messages(GameState *game_state){
                 particles.remove(i);
                 continue;
             }
-            if(particle->glitched_life > 0.f){
-                particle->glitched_life -= TIME_STEP;
-                if(particle->glitched_life < 0.f){
-                    particles.remove(i);
-                    continue;
-                }
-                if(rand()%2){
-                    particle->v.y -= gravity*TIME_STEP;
-                    particle->r -= particle->v*TIME_STEP;
-                }else{
-                    particle->r += particle->v*TIME_STEP;
-                    particle->v.y += gravity*TIME_STEP;
-                }
-            }else{
-                particle->r += particle->v*TIME_STEP;
-                particle->v.y += gravity*TIME_STEP;
-                if(rand()%1000 == 0){
-                    particle->glitched_life = 1.f;
-                }
-            }
+            
+            particle->r += particle->v*TIME_STEP;
+            particle->v.y += gravity*TIME_STEP;
         }
     }
     
     // Level
 }
 
-void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
-    Vertex_PT o_vertices[12];
-    Vertex_PT *vertices = o_vertices;
+void find_snapshot_to_render(GameState *game_state){
     int next_candidate = game_state->last_rendered_snapshot+1;
     while(game_state->player_snapshots[next_candidate].time < game_state->time){
         next_candidate = (next_candidate + 1) % MAX_UPS;
     }
     game_state->last_rendered_snapshot = (next_candidate + MAX_UPS - 1) % MAX_UPS;
+}
+
+void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
+    Vertex_PT o_vertices[12];
+    Vertex_PT *vertices = o_vertices;
+    
     game_state->rendered_player = game_state->player_snapshots[game_state->last_rendered_snapshot];
     PlayerSnapshot drawn_player = game_state->rendered_player;
     
@@ -817,12 +879,9 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
     int current_frame_y = pri->current_frame_y;
     
     bool flip = false;
-    if(drawn_player.v.x < 0.f)
-        flip = true;
     if(drawn_player.flags & PM_STICKING_TO_WALL){
         current_frame_y = 0;
         current_frame_x = 1;
-        flip = (drawn_player.flags & PM_STICKING_TO_WALL_RIGHT) != 0;
     }else if(!(drawn_player.flags & PM_ON_GROUND)){
         if(current_frame_y != 3){
             pri->time_in_current_frame = 0;
@@ -850,7 +909,7 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
                 current_frame_y = 3-current_frame_y;
             }
             if(current_frame_x == 1)
-                add_sound_message(game_state, current_frame_y == 6 ? SOUND_WALK_0 : SOUND_WALK_1);
+                play_sound(&game_state->sound, current_frame_y == 6 ? SOUND_WALK_0 : SOUND_WALK_1);
         }
     }else{
         current_frame_y = 0;
@@ -859,12 +918,15 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
     pri->current_frame_x = current_frame_x;
     pri->current_frame_y = current_frame_y;
     
+    flip = (drawn_player.flags & PM_LOOKING_LEFT) != 0;
+    
     Vec2 t00, t10, t01, t11;
     if(flip){
         t11 = Vec2(current_frame_x*outer_picture_size+picture_margin, texture_size-(current_frame_y*outer_picture_size+picture_margin))/texture_size;
         t01 = t11+Vec2(inner_picture_size/texture_size, 0.f);
         t10 = t11+Vec2(0.f, -inner_picture_size/texture_size);
         t00 = t01+Vec2(0.f, -inner_picture_size/texture_size);
+        r.x -= 0.05f;
     }else{
         t01 = Vec2(current_frame_x*outer_picture_size+picture_margin, texture_size-(current_frame_y*outer_picture_size+picture_margin))/texture_size;
         t11 = t01+Vec2(inner_picture_size/texture_size, 0.f);

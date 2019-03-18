@@ -17,6 +17,8 @@ void continue_game(GameState *game_state);
 void save_game(GameState *game_state);
 void load_game(GameState *game_state);
 
+void draw_scene(GameState *game_state, bool should_draw_ui_and_player);
+
 const int GAME_MODE_PLAY  = 0;
 const int GAME_MODE_MENU  = 1;
 const int GAME_MODE_START = 2;

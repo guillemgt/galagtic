@@ -8,6 +8,8 @@ extern Vec2 level_size;
 const float screen_portion_of_ui_bottom = 0.1f;
 const float screen_portion_of_ui_top    = 0.07f;
 
+const float fade_speed = 2.f;
+
 struct BufferAndCount {
     GLuint buffer;
     u32 count;
@@ -46,6 +48,7 @@ struct GLObjects {
     BufferAndCount player_buffer;
     BufferAndCount particle_buffer;
     BufferAndCount noise_buffer;
+    BufferAndCount fade_buffer;
     BufferAndCount text_buffer;
     BufferAndCount ui_textures_buffer;
     BufferAndCount tmp_buffer;
@@ -63,6 +66,7 @@ struct GLObjects {
     GLuint player_vao;
     GLuint particle_vao;
     GLuint noise_vao;
+    GLuint fade_vao;
     GLuint text_vao;
     GLuint ui_textures_vao;
     GLuint tmp_vao;
@@ -83,7 +87,7 @@ struct GLObjects {
 };
 
 void init_openGL(GameState *game_state);
-void draw_scene(GameState *game_state, bool should_redraw_level);
-void change_window_size(GameState *game_state);
+void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_and_player);
+void change_window_size(GameState *game_state, Vec2 size);
 
 #endif /* render_hpp */

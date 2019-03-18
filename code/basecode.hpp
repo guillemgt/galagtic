@@ -15,7 +15,7 @@ struct Level;
 struct GameState {
     Player player;
     int player_lives;
-    float time;
+    float time, time_started_counting;
     Level level;
     
     // Things for the deferred rendering
@@ -41,6 +41,7 @@ struct GameState {
     
     // Stats
     GameStats stats;
+    CurrentRunData current_run_data;
     
     //
     GLObjects gl_objects;
@@ -55,10 +56,8 @@ struct GameState {
     // Game state
     int game_mode;
     
+    bool was_in_play_mode = false;
     bool should_save_game, space_lagged;
-    bool game_started, game_started_this_run;
-    
-    int loaded_save_level;
 };
 
 #endif

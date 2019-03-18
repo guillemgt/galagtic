@@ -53,7 +53,7 @@ void load_world(GameState *game_state){
             i++;
         }
     }
-    /*for(int l=0; l<levels_num; l++){
+    / *for(int l=0; l<levels_num; l++){
         int w = level_sizes[l].x;
         int h = level_sizes[l].y-1;
         for(int x=0; x<w; x++){
@@ -70,14 +70,14 @@ void load_world(GameState *game_state){
     block_info['@']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS;
     block_info['F']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
     
-    block_info['H']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['h']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['j']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['G']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['g']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['J']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['k']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['K']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['H']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
+    block_info['h']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
+    block_info['j']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
+    block_info['G']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
+    block_info['g']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
+    block_info['J']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
+    block_info['k']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
+    block_info['K']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS_SQUARE;
     
     block_info['^']  = BLOCK_IS_HARMFUL_UP    | BLOCK_IS_TRANSPARENT;
     block_info['v']  = BLOCK_IS_HARMFUL_DOWN  | BLOCK_IS_TRANSPARENT;
@@ -93,8 +93,8 @@ void load_world(GameState *game_state){
     block_info['L']  = BLOCK_IS_HARMFUL_LEFT  | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
     block_info['X']  = BLOCK_IS_TRANSPARENT;
     block_info['Z']  = BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
-    block_info['x']  = BLOCK_IS_HARMFUL_DOWN | BLOCK_IS_TRANSPARENT;
-    block_info['z']  = BLOCK_IS_HARMFUL_DOWN | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
+    block_info['x']  = BLOCK_IS_HARMFUL_UP | BLOCK_IS_TRANSPARENT;
+    block_info['z']  = BLOCK_IS_HARMFUL_UP | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
     block_info['*']  = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT;
     block_info['+']  = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
     block_info['%']  = BLOCK_IS_GOAL | BLOCK_IS_TRANSPARENT;
@@ -122,7 +122,13 @@ void load_level(GameState *game_state, int num){
     if(num < 0 || num >= ArrayCount(all_levels))
         return;
     
-    printf("Loading level #%i/%lli\n", num, ArrayCount(all_levels)-1);
+    if(num > 0 && game_state->time_started_counting == INFINITY)
+        game_state->time_started_counting = game_state->time + game_state->render_lag_time;
+    
+    if(game_state->stats.unlocked_levels < num)
+        game_state->stats.unlocked_levels = num;
+    
+    //printf("Loading level #%i/%lli\n", num, ArrayCount(all_levels)-1);
     
     Player *player = &game_state->player;
     Level  *level  = &game_state->level;
@@ -146,6 +152,7 @@ void load_level(GameState *game_state, int num){
     level_size = Vec2((f32)level->width, (f32)level->height-2.f);
     
     lagged_level->gates.size = 0;
+    lagged_level->retractable_spikes.size = 0;
     
     for(int x=0; x<level->width; x++){
         for(int y=0; y<level->height; y++){
@@ -160,6 +167,8 @@ void load_level(GameState *game_state, int num){
                 lagged_level->gates.push({Vec2((f32)x, (f32)y), 0.5f, 0});
             }else if(c == 'J'){
                 lagged_level->gates.push({Vec2((f32)x, (f32)y), 0.f, GF_IMMORTAL});
+            }else if(c == 'X' || c == 'Z'){
+                lagged_level->retractable_spikes.push({Vec2((f32)x, (f32)y), -0.5f});
             }
         }
     }
@@ -215,7 +224,7 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, Buffe
                     vertex_count += 9;
                 //else if((c == '*' || c == '%') && !player.completed_level)
                 //    vertex_count += 6;
-                if(block_info[c] & BLOCK_HAS_TWO_LAYERS)
+                if(block_info[c] & (BLOCK_HAS_TWO_LAYERS | BLOCK_HAS_TWO_LAYERS_SQUARE))
                     vertex_count += 6;
             }
         }
@@ -524,6 +533,21 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, Buffe
                     *(vertices++) = {square[1], color};
                     *(vertices++) = {square[3], color};
                 }
+                if(block_info[c] & BLOCK_HAS_TWO_LAYERS_SQUARE){
+                    const RgbaColor color = {0, 0, 0, 25};
+                    Vec3 square[4] = {
+                        Vec3(fx+0.f, fy+0.f, 0.19f),
+                        Vec3(fx+1.f, fy+0.f, 0.19f),
+                        Vec3(fx+0.f, fy+1.f, 0.19f),
+                        Vec3(fx+1.f, fy+1.f, 0.19f),
+                    };
+                    *(vertices++) = {square[0], color};
+                    *(vertices++) = {square[1], color};
+                    *(vertices++) = {square[2], color};
+                    *(vertices++) = {square[2], color};
+                    *(vertices++) = {square[1], color};
+                    *(vertices++) = {square[3], color};
+                }
                 fy += 1.f;
             }
             fx += 1.f;
@@ -727,7 +751,7 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
             }
         }
         {
-            RgbaColor color = {35, 35, 35, 255};
+            RgbaColor color = basic_color;
             for(uint k=0; k<level->gates.size; k++){
                 Gate *g = &level->gates[k];
                 Vec2 r = g->r;
@@ -736,10 +760,19 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                 if(visited_now)
                     g->flags |= GF_VISITED;
                 if(g->flags & GF_VISITED && g->flags & GF_IMMORTAL && !visited_now){
-                    if(g->state < 0.5f)
+                    if(g->state <= 0.f)
+                        play_sound(&game_state->sound, SOUND_SLIDE);
+                    if(g->state < 0.5f){
                         g->state += 2.f*TIME_STEP;
+                        //if(g->state > 0.5f)
+                        //g->state = 0.5f;
+                    }
                 }else if(level_completed && g->state > 0.f){
+                    if(g->state >= 0.5f)
+                        play_sound(&game_state->sound, SOUND_SLIDE);
                     g->state -= 2.f*TIME_STEP;
+                    //if(g->state < 0.f)
+                    //g->state = 0.f;
                 }
                 
                 float s = g->state;
@@ -747,15 +780,15 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                 
                 if(g->flags & GF_HORIZONTAL){
                     Vec3 box[8] = {
-                        Vec3(r.x+0.f, r.y+0.f, 0.01f),
-                        Vec3(r.x+s,   r.y+0.f, 0.01f),
-                        Vec3(r.x+0.f, r.y+1.f, 0.01f),
-                        Vec3(r.x+s,   r.y+1.f, 0.01f),
+                        Vec3(r.x+0.f, r.y+0.f, 0.f),
+                        Vec3(r.x+s,   r.y+0.f, 0.f),
+                        Vec3(r.x+0.f, r.y+1.f, 0.f),
+                        Vec3(r.x+s,   r.y+1.f, 0.f),
                         
-                        Vec3(r.x+1.f, r.y+0.f, 0.01f),
-                        Vec3(r.x+t,   r.y+0.f, 0.01f),
-                        Vec3(r.x+1.f, r.y+1.f, 0.01f),
-                        Vec3(r.x+t,   r.y+1.f, 0.01f),
+                        Vec3(r.x+1.f, r.y+0.f, 0.f),
+                        Vec3(r.x+t,   r.y+0.f, 0.f),
+                        Vec3(r.x+1.f, r.y+1.f, 0.f),
+                        Vec3(r.x+t,   r.y+1.f, 0.f),
                     };
                     *(vertices++) = {box[0], color};
                     *(vertices++) = {box[1], color};
@@ -772,15 +805,15 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                     *(vertices++) = {box[7], color};
                 }else{
                     Vec3 box[8] = {
-                        Vec3(r.x+0.f, r.y+0.f, 0.01f),
-                        Vec3(r.x+1.f, r.y+0.f, 0.01f),
-                        Vec3(r.x+0.f, r.y+s,   0.01f),
-                        Vec3(r.x+1.f, r.y+s,   0.01f),
+                        Vec3(r.x+0.f, r.y+0.f, 0.f),
+                        Vec3(r.x+1.f, r.y+0.f, 0.f),
+                        Vec3(r.x+0.f, r.y+s,   0.f),
+                        Vec3(r.x+1.f, r.y+s,   0.f),
                         
-                        Vec3(r.x+0.f, r.y+t,   0.01f),
-                        Vec3(r.x+1.f, r.y+t,   0.01f),
-                        Vec3(r.x+0.f, r.y+1.f, 0.01f),
-                        Vec3(r.x+1.f, r.y+1.f, 0.01f),
+                        Vec3(r.x+0.f, r.y+t,   0.f),
+                        Vec3(r.x+1.f, r.y+t,   0.f),
+                        Vec3(r.x+0.f, r.y+1.f, 0.f),
+                        Vec3(r.x+1.f, r.y+1.f, 0.f),
                     };
                     *(vertices++) = {box[0], color};
                     *(vertices++) = {box[1], color};
@@ -797,6 +830,42 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                     *(vertices++) = {box[7], color};
                 }
             }
+        }
+        {
+            const RgbaColor color = basic_color;
+            bool do_sound = false;
+            
+            for(uint k=0; k<level->retractable_spikes.size; k++){
+                RetractableSpike *g = &level->retractable_spikes[k];
+                float fx = g->r.x, fy = g->r.y;
+                int x = (int)fx, y = (int)fy;
+                
+                if(level_completed){
+                    if(g->state <= -0.5f)
+                        do_sound = true;
+                    if(g->state < 0.f)
+                        g->state += 2.f*TIME_STEP;
+                    else
+                        g->state = 0.f;
+                }else
+                    g->state = -0.5f;
+                
+                fy += g->state;
+                float r0 = 0.3f+0.2f*((13*x+17*y)%23)/23.f;
+                float r1 = 0.5f;
+                float r2 = 0.3f+0.2f*((17*x+13*y)%23)/23.f;
+                *(vertices++) = {Vec3(fx+0.f/6.f, fy+0.f, 0.f), color};
+                *(vertices++) = {Vec3(fx+1.f/6.f, fy+r0,  0.f), color};
+                *(vertices++) = {Vec3(fx+2.f/6.f, fy+0.f, 0.f), color};
+                *(vertices++) = {Vec3(fx+2.f/6.f, fy+0.f, 0.f), color};
+                *(vertices++) = {Vec3(fx+3.f/6.f, fy+r1,  0.f), color};
+                *(vertices++) = {Vec3(fx+4.f/6.f, fy+0.f, 0.f), color};
+                *(vertices++) = {Vec3(fx+4.f/6.f, fy+0.f, 0.f), color};
+                *(vertices++) = {Vec3(fx+5.f/6.f, fy+r2,  0.f), color};
+                *(vertices++) = {Vec3(fx+6.f/6.f, fy+0.f, 0.f), color};
+            }
+            if(do_sound)
+                play_sound(&game_state->sound, SOUND_SPIKES);
         }
         {
             RgbaColor color = {30, 30, 30, 255};

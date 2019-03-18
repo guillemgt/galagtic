@@ -4,6 +4,8 @@
 
 #if OS != OS_IOS
 
+const float global_volume = 0.2f*MIX_MAX_VOLUME;
+
 void init_sound(SoundInfo *sound){
     if(Mix_OpenAudio( 44100, MIX_DEFAULT_FORMAT, 2, 2048 ) < 0){
         printf( "SDL_mixer could not initialize! SDL_mixer Error: %s\n", Mix_GetError() );
@@ -12,47 +14,24 @@ void init_sound(SoundInfo *sound){
     
     char path[MAX_PATH_LENGTH];
     
-    get_game_file_path("Sound/sound_walk_0.wav", path);
-    sound->sounds[SOUND_WALK_0] = Mix_LoadWAV(path);
-    if(sound->sounds[SOUND_WALK_0] == NULL){
-        printf( "Failed to load 'sound_walk_0'! SDL_mixer Error: %s\n", Mix_GetError() );
-        return;
-    }
+#define LOAD_SOUND_FILE(id, file, volume) { \
+        get_game_file_path(file, path); \
+        sound->sounds[id] = Mix_LoadWAV(path); \
+        if(sound->sounds[id] == NULL){ \
+            printf( "Failed to load '" file "'! SDL_mixer Error: %s\n", Mix_GetError() ); \
+            return; \
+        } \
+        Mix_VolumeChunk(sound->sounds[id], (int)(volume*global_volume)); \
+    } \
     
-    get_game_file_path("Sound/sound_walk_1.wav", path);
-    sound->sounds[SOUND_WALK_1] = Mix_LoadWAV(path);
-    if(sound->sounds[SOUND_WALK_1] == NULL){
-        printf( "Failed to load 'sound_walk_1'! SDL_mixer Error: %s\n", Mix_GetError() );
-        return;
-    }
-    
-    get_game_file_path("Sound/sound_jump.wav", path);
-    sound->sounds[SOUND_JUMP] = Mix_LoadWAV(path);
-    if(sound->sounds[SOUND_JUMP] == NULL){
-        printf( "Failed to load 'sound_jump'! SDL_mixer Error: %s\n", Mix_GetError() );
-        return;
-    }
-    
-    get_game_file_path("Sound/sound_death.wav", path);
-    sound->sounds[SOUND_DEATH] = Mix_LoadWAV(path);
-    if(sound->sounds[SOUND_DEATH] == NULL){
-        printf( "Failed to load 'sound_death'! SDL_mixer Error: %s\n", Mix_GetError() );
-        return;
-    }
-    
-    get_game_file_path("Sound/sound_win.wav", path);
-    sound->sounds[SOUND_WIN] = Mix_LoadWAV(path);
-    if(sound->sounds[SOUND_WIN] == NULL){
-        printf( "Failed to load 'sound_win'! SDL_mixer Error: %s\n", Mix_GetError() );
-        return;
-    }
-    
-    get_game_file_path("Sound/sound_collision.wav", path);
-    sound->sounds[SOUND_COLLISION] = Mix_LoadWAV(path);
-    if(sound->sounds[SOUND_COLLISION] == NULL){
-        printf( "Failed to load 'sound_win'! SDL_mixer Error: %s\n", Mix_GetError() );
-        return;
-    }
+    LOAD_SOUND_FILE(SOUND_WALK_0, "Sound/sound_walk_0.wav", 0.3f);
+    LOAD_SOUND_FILE(SOUND_WALK_1, "Sound/sound_walk_1.wav", 0.3f);
+    LOAD_SOUND_FILE(SOUND_JUMP,   "Sound/sound_walk_0.wav", 0.4f);LOAD_SOUND_FILE(SOUND_DEATH,  "Sound/sound_death.wav",  1.f);
+    LOAD_SOUND_FILE(SOUND_WIN,    "Sound/sound_win.wav",    0.7f);
+    LOAD_SOUND_FILE(SOUND_SLIDE,  "Sound/sound_slide.wav",  0.3f);
+    LOAD_SOUND_FILE(SOUND_SPIKES, "Sound/sound_spikes.wav", 0.6f);
+    LOAD_SOUND_FILE(SOUND_TICK_0, "Sound/tick0.wav",        1.3f);
+    LOAD_SOUND_FILE(SOUND_TICK_1, "Sound/tick1.wav",        1.3f);
 }
 
 void cleanup_sound(SoundInfo *sound){
@@ -62,16 +41,14 @@ void cleanup_sound(SoundInfo *sound){
 }
 
 void play_sound(SoundInfo *sound, u8 sound_index){
-    /*
     if(!sound->on)
         return;
-    Mix_PlayChannel(-1, sound->sounds[sound_index], 0);*/
+    Mix_PlayChannel(-1, sound->sounds[sound_index], 0);
 }
 
 #else
 
-void init_sound(){
-    
+void init_sound(SoundInfo *sound){
 }
 void cleanup_sound(){
     
@@ -79,7 +56,8 @@ void cleanup_sound(){
 void play_step(){
     
 }
-void play_sound(u8 sound_index){
+
+void play_sound(SoundInfo *sound, u8 sound_index){
 }
 
 #endif

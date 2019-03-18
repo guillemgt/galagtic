@@ -16,8 +16,12 @@ const u8 SOUND_JUMP      = 2;
 const u8 SOUND_DEATH     = 3;
 const u8 SOUND_WIN       = 4;
 const u8 SOUND_COLLISION = 5;
+const u8 SOUND_SLIDE     = 6;
+const u8 SOUND_SPIKES    = 7;
+const u8 SOUND_TICK_0    = 8;
+const u8 SOUND_TICK_1    = 9;
 
-const int sounds_size = 6;
+const int sounds_size = 10;
 struct SoundInfo {
     bool on = true;
     Mix_Chunk *sounds[sounds_size];

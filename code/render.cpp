@@ -78,6 +78,7 @@ void init_openGL(GameState *game_state){
     glGenBuffers(1, &gl->player_buffer.buffer);
     glGenBuffers(1, &gl->particle_buffer.buffer);
     glGenBuffers(1, &gl->noise_buffer.buffer);
+    glGenBuffers(1, &gl->fade_buffer.buffer);
     glGenBuffers(1, &gl->text_buffer.buffer);
     glGenBuffers(1, &gl->ui_textures_buffer.buffer);
     glGenBuffers(1, &gl->tmp_buffer.buffer);
@@ -153,6 +154,16 @@ void init_openGL(GameState *game_state){
     glVertexAttribPointer(gl->ptt_program.tex_coords, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PN), (void *)(sizeof(Vec3)));
     check_openGL_error();
     
+    glGenVertexArrays(1, &gl->fade_vao);
+    glBindVertexArray(gl->fade_vao);
+    glEnableVertexAttribArray(gl->pca_program.position);
+    glEnableVertexAttribArray(gl->pca_program.color);
+    glBindBuffer(GL_ARRAY_BUFFER, gl->fade_buffer.buffer);
+    glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
+    glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
+    check_openGL_error();
+    
+    
     glGenVertexArrays(1, &gl->text_vao);
     glBindVertexArray(gl->text_vao);
     glEnableVertexAttribArray(gl->ptca_program.position);
@@ -220,7 +231,7 @@ void init_openGL(GameState *game_state){
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     check_openGL_error();
     
-    change_window_size(game_state);
+    change_window_size(game_state, (Vec2)window_size);
     
     //load_level_into_buffer(game_state, &gl->level_buffer, &gl->noise_buffer);
     
@@ -273,12 +284,13 @@ void print_render_time(){
 #define check_openGL_error()
 #endif
 
-void draw_scene(GameState *game_state, bool should_redraw_level){
+void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_and_player){
     start_time();
     
     GLObjects *gl = &game_state->gl_objects;
     PlayerSnapshot *rendered_player = &game_state->rendered_player;
     
+    find_snapshot_to_render(game_state);
     load_player_into_buffer(game_state, &gl->player_buffer); // This must be first, because it sets rendered_player
     load_particles_into_buffer(game_state, &gl->particle_buffer);
     load_goal_into_buffer(game_state, &gl->goal_buffer);
@@ -348,14 +360,14 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         check_openGL_error();
     }
     
-    if(gl->player_buffer.count > 0){
+    if(draw_ui_and_player && gl->player_buffer.count > 0){
         glUniform1i(gl->pt_program.sampler, 0);
         glBindVertexArray(gl->player_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->player_buffer.count);
         check_openGL_error();
     }
     
-    if(gl->ui_textures_buffer.count > 0){
+    if(draw_ui_and_player && gl->ui_textures_buffer.count > 0){
         glUniformMatrix4fv(gl->pt_program.matrix, 1, GL_FALSE, &ui_matrix.values[0][0]);
         glBindVertexArray(gl->ui_textures_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->ui_textures_buffer.count);
@@ -391,12 +403,12 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         start_temp_alloc();
         u32 vert_num = 0;
         
-        float time = game_state->time;
+        float time = game_state->time - game_state->time_started_counting;
         
-        String time_string;
-        time_string.allocator = &temporary_storage.allocator;
         char time_sc[30];
-        if(time < 60.)
+        if(time < 0.f)
+            sprintf(time_sc, "");
+        else if(time < 60.)
             sprintf(time_sc, "%.2lf ", time);
         else if(time < 3600.){
             int sec = (int)time;
@@ -408,18 +420,14 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
             int h   = min/60;
             sprintf(time_sc, "%i:%02i:%05.2lf ", h, min%60, time-min*60.);
         }
-        time_string = time_sc;
-        vert_num += text_vert_num(time_string);
+        vert_num += text_vert_num(time_sc);
         
-        String lives_string;
-        lives_string.allocator = &temporary_storage.allocator;
         char lives_sc[30];
         if(game_state->player_lives >= 0)
             sprintf(lives_sc, "   x%i", game_state->player_lives);
         else
             sprintf(lives_sc, "   x(%i)", game_state->player_lives);
-        lives_string = lives_sc;
-        vert_num += text_vert_num(lives_string);
+        vert_num += text_vert_num(lives_sc);
         
         
         Vertex_PTCa *o_verts = (Vertex_PTCa *)temp_alloc(vert_num*sizeof(Vertex_PTCa));
@@ -429,12 +437,12 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         float spt = screen_portion_of_ui_top    * gl->actual_screen_ratio;
         
         float time_width;
-        Vertex_PTCa *verts_time = verts + render_text_monospace(1.f, gl->actual_screen_ratio+0.2f*spt, -0.9f, FONT_QUALITY_64, time_string, verts, spt, &time_width, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
+        Vertex_PTCa *verts_time = verts + render_text_monospace(1.f, gl->actual_screen_ratio+0.2f*spt, -0.7f, FONT_QUALITY_64, time_sc, verts, spt, &time_width, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
         while(verts < verts_time){
             verts->p.x -= time_width;
             verts++;
         }
-        verts += render_text_monospace(0.f, gl->actual_screen_ratio+0.2f*spt, -0.9f, FONT_QUALITY_64, lives_string, verts, spt, NULL, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
+        verts += render_text_monospace(0.f, gl->actual_screen_ratio+0.2f*spt, -0.7f, FONT_QUALITY_64, lives_sc, verts, spt, NULL, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
         
         gl->text_buffer.count = vert_num;
         set_buffer_data_static(gl->text_buffer.buffer, o_verts, gl->text_buffer.count);
@@ -442,7 +450,7 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         end_temp_alloc();
     }
     
-    if(gl->text_buffer.count > 0){
+    if(draw_ui_and_player && gl->text_buffer.count > 0){
         glUseProgram(gl->ptca_program.id);
         glUniformMatrix4fv(gl->ptca_program.matrix, 1, GL_FALSE, &ui_matrix.values[0][0]);
         glUniform1i(gl->ptca_program.sampler, 2);
@@ -451,6 +459,32 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         glDrawArrays(GL_TRIANGLES, 0, gl->text_buffer.count);
         check_openGL_error();
     }
+    
+    float alpha = game_state->menu_info.fade_alpha;
+    if(alpha > 0.f){
+        RgbaColor c = {0, 0, 0, (u8)(alpha*255)};
+        
+        Vertex_PCa o_vertices[] = {
+            {Vec3(-1.f, -1.f, -1.f), c},
+            {Vec3(+1.f, -1.f, -1.f), c},
+            {Vec3(-1.f, +1.f, -1.f), c},
+            {Vec3(-1.f, +1.f, -1.f), c},
+            {Vec3(+1.f, -1.f, -1.f), c},
+            {Vec3(+1.f, +1.f, -1.f), c},
+        };
+        
+        gl->fade_buffer.count = ArrayCount(o_vertices);
+        set_buffer_data_dynamic(gl->fade_buffer.buffer, o_vertices, gl->fade_buffer.count);
+        
+        Mat4 id = mat4_identity;
+        
+        glUseProgram(gl->pca_program.id);
+        glUniformMatrix4fv(gl->pca_program.matrix, 1, GL_FALSE, &id.values[0][0]);
+        glBindVertexArray(gl->fade_vao);
+        glDrawArrays(GL_TRIANGLES, 0, gl->fade_buffer.count);
+        check_openGL_error();
+    }
+    
     
 #if OS == OS_IOS
     {
@@ -462,35 +496,37 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
         float margin = 0.02*gl->actual_screen_ratio;
         const RgbaColor bg = {100, 100, 100, 100};
         const RgbaColor fg = {200, 200, 200,  50};
+        const float z = -0.8f;
+        const float zp = -0.81f;
         Vertex_PCa o_vertices[] = {
-            {Vec3(margin+0.f, margin+0.f, -0.9f), bg},
-            {Vec3(margin+pun, margin+0.f, -0.9f), bg},
-            {Vec3(margin+0.f, margin+pun, -0.9f), bg},
-            {Vec3(margin+0.f, margin+pun, -0.9f), bg},
-            {Vec3(margin+pun, margin+0.f, -0.9f), bg},
-            {Vec3(margin+pun, margin+pun, -0.9f), bg},
+            {Vec3(margin+0.f, margin+0.f, z), bg},
+            {Vec3(margin+pun, margin+0.f, z), bg},
+            {Vec3(margin+0.f, margin+pun, z), bg},
+            {Vec3(margin+0.f, margin+pun, z), bg},
+            {Vec3(margin+pun, margin+0.f, z), bg},
+            {Vec3(margin+pun, margin+pun, z), bg},
             
-            {Vec3(margin+xun,     margin+hpun,    -1.f), fg},
-            {Vec3(margin+pun-xun, margin+yun,     -1.f), fg},
-            {Vec3(margin+pun-xun, margin+pun-yun, -1.f), fg},
+            {Vec3(margin+xun,     margin+hpun,    zp), fg},
+            {Vec3(margin+pun-xun, margin+yun,     zp), fg},
+            {Vec3(margin+pun-xun, margin+pun-yun, zp), fg},
             
-            {Vec3(2.f*margin+1.f*pun, margin+0.f, -0.9f), bg},
-            {Vec3(2.f*margin+2.f*pun, margin+0.f, -0.9f), bg},
-            {Vec3(2.f*margin+1.f*pun, margin+pun, -0.9f), bg},
-            {Vec3(2.f*margin+1.f*pun, margin+pun, -0.9f), bg},
-            {Vec3(2.f*margin+2.f*pun, margin+0.f, -0.9f), bg},
-            {Vec3(2.f*margin+2.f*pun, margin+pun, -0.9f), bg},
+            {Vec3(2.f*margin+1.f*pun, margin+0.f, z), bg},
+            {Vec3(2.f*margin+2.f*pun, margin+0.f, z), bg},
+            {Vec3(2.f*margin+1.f*pun, margin+pun, z), bg},
+            {Vec3(2.f*margin+1.f*pun, margin+pun, z), bg},
+            {Vec3(2.f*margin+2.f*pun, margin+0.f, z), bg},
+            {Vec3(2.f*margin+2.f*pun, margin+pun, z), bg},
             
-            {Vec3(2.f*margin+2.f*pun-xun, margin+hpun,    -1.f), fg},
-            {Vec3(2.f*margin+1.f*pun+xun, margin+yun,     -1.f), fg},
-            {Vec3(2.f*margin+1.f*pun+xun, margin+pun-yun, -1.f), fg},
+            {Vec3(2.f*margin+2.f*pun-xun, margin+hpun,    zp), fg},
+            {Vec3(2.f*margin+1.f*pun+xun, margin+yun,     zp), fg},
+            {Vec3(2.f*margin+1.f*pun+xun, margin+pun-yun, zp), fg},
             
-            {Vec3(1.f-margin,     margin+0.f, -1.f), bg},
-            {Vec3(1.f-margin-pun, margin+0.f, -1.f), bg},
-            {Vec3(1.f-margin,     margin+pun, -1.f), bg},
-            {Vec3(1.f-margin,     margin+pun, -1.f), bg},
-            {Vec3(1.f-margin-pun, margin+0.f, -1.f), bg},
-            {Vec3(1.f-margin-pun, margin+pun, -1.f), bg},
+            {Vec3(1.f-margin,     margin+0.f, zp), bg},
+            {Vec3(1.f-margin-pun, margin+0.f, zp), bg},
+            {Vec3(1.f-margin,     margin+pun, zp), bg},
+            {Vec3(1.f-margin,     margin+pun, zp), bg},
+            {Vec3(1.f-margin-pun, margin+0.f, zp), bg},
+            {Vec3(1.f-margin-pun, margin+pun, zp), bg},
         };
         for(int k=0; k<3; k++){
             if(player.keys[k]){
@@ -517,11 +553,10 @@ void draw_scene(GameState *game_state, bool should_redraw_level){
 #endif
 }
 
-void change_window_size(GameState *game_state){
+void change_window_size(GameState *game_state, Vec2 size){
     GLObjects *gl = &game_state->gl_objects;
     
-    gl->actual_screen_size.x = (f32)window_size.x;
-    gl->actual_screen_size.y = (f32)window_size.y;
+    gl->actual_screen_size = size;
     gl->screen_size.x = gl->actual_screen_size.x;
     gl->screen_size.y = (1.f - screen_portion_of_ui_top - screen_portion_of_ui_bottom)*gl->actual_screen_size.y;
     gl->actual_screen_ratio = gl->actual_screen_size.y / gl->actual_screen_size.x;

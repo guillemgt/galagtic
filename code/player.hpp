@@ -19,9 +19,13 @@ struct PlayerSnapshot {
 };
 
 struct GameStats {
-    clock_t starting_time;
-    float best_time;
-    unsigned int best_lives;
+    float best_time, best_time_plus;
+    int best_lives, best_lives_plus, unlocked_levels;
+};
+struct CurrentRunData {
+    int level_num, player_lives;
+    float time, time_started_counting;
+    bool space_lagged, game_started;
 };
 
 
@@ -58,6 +62,7 @@ const u32 PM_WALL_JUMPING_LEFT      = 0x00080000;
 const u32 PM_STICKING_TO_WALL = PM_STICKING_TO_WALL_RIGHT | PM_STICKING_TO_WALL_LEFT;
 const u32 PM_WALL_JUMPING = PM_WALL_JUMPING_RIGHT | PM_WALL_JUMPING_LEFT;
 const u32 PM_DISABLED = 0x80000000;
+const u32 PM_LOOKING_LEFT           = 0x00100000;
 
 struct SoundMessage {
     float time;
@@ -87,12 +92,12 @@ struct Platform {
 struct Particle {
     Vec2 r, v;
     RgbaColor color;
-    float glitched_life;
 };
 
-const int MAX_ENEMIES = 16;
-const int MAX_PLATFORMS = 8;
-const int MAX_GATES = 8;
+const int MAX_ENEMIES            = 16;
+const int MAX_PLATFORMS          =  8;
+const int MAX_GATES              = 32;
+const int MAX_RETRACTABLE_SPIKES = 32;
 
 #define MAX_PARTICLES 9000
 #define MAX_UPS 120 // Updates Per Second
@@ -104,6 +109,10 @@ struct Gate {
     Vec2 r;
     float state;
     u8 flags;
+};
+struct RetractableSpike {
+    Vec2 r;
+    float state;
 };
 
 struct Level {
@@ -120,6 +129,7 @@ struct LaggedLevel {
     Vec2 key_r;
     StaticArray<Vec2, MAX_PLATFORMS> platform_sizes;
     StaticArray<Gate, MAX_GATES>     gates;
+    StaticArray<RetractableSpike, MAX_RETRACTABLE_SPIKES> retractable_spikes;
 };
 
 
@@ -137,7 +147,10 @@ struct LevelInfo {
 };
 extern LevelInfo all_levels[];
 
+void add_snapshot(GameState *game_state);
+
 void change_level_state(Level *level);
+bool change_level_state_and_return_if_changed(Level *level);
 void reset_player(LevelInfo *level_info, Player *player, Level *level);
 
 void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer);
@@ -146,6 +159,8 @@ void load_particles_into_buffer(GameState *game_state, BufferAndCount *buffer);
 void process_movement(GameState *game_state, u8 keys);
 void init_messages(GameState *game_state);
 void process_messages(GameState *game_state);
+
+void find_snapshot_to_render(GameState *game_state);
 
 struct PlayerRenderingInfo {
     int current_frame_x = 0;
