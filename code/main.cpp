@@ -57,6 +57,7 @@ int init_game(GameState *game_state){
 
 void new_game(GameState *game_state, bool newer_game){
     game_state->current_run_data.game_started = true;
+    game_state->is_in_real_game = true;
     
     // New game
     game_state->player_lives = 3;
@@ -86,6 +87,8 @@ void new_game(GameState *game_state, bool newer_game){
 }
 
 void continue_game(GameState *game_state){
+    game_state->is_in_real_game = true;
+    
     CurrentRunData *crt = &game_state->current_run_data;
     game_state->player_lives = crt->player_lives;
     game_state->time = crt->time;
@@ -107,6 +110,35 @@ void continue_game(GameState *game_state){
     
     load_level(game_state, crt->level_num);
     game_state->should_save_game = false;
+    
+    init_messages(game_state);
+    
+    game_state->draw_new_level_time = -1.f;
+}
+
+void new_level_select_game(GameState *game_state, int num, bool newer_game){
+    game_state->is_in_real_game = false;
+    
+    // New game
+    game_state->player_lives = 3;
+    game_state->time = 0.f;
+    game_state->time_started_counting = 0;
+    
+    game_state->space_lagged = newer_game;
+#if !LAGGY
+    game_state->input_lag_time = 0.f;
+    game_state->render_lag_time = 0.f;
+#else
+    if(game_state->space_lagged){
+        game_state->input_lag_time = lag_time;
+        game_state->render_lag_time = 0.f;
+    }else{
+        game_state->input_lag_time = 0.f;
+        game_state->render_lag_time = lag_time;
+    }
+#endif
+    
+    load_level(game_state, num);
     
     init_messages(game_state);
     
@@ -187,14 +219,8 @@ int game_loop(GameState *game_state, bool keys[KEYS_NUM], StaticArray<Event, MAX
             case EVENT_KEYDOWN: {
                 if(game_state->game_mode == GAME_MODE_PLAY){
                     if(events[i].data.key == KEYS_ESC){
-                        CurrentRunData *crt = &game_state->current_run_data;
-                        crt->level_num = game_state->level.num;
-                        crt->player_lives = game_state->player_lives;
-                        crt->time = game_state->time;
-                        crt->time_started_counting = game_state->time_started_counting;
-                        crt->space_lagged = game_state->space_lagged;
-                        crt->game_started = true;
-                        
+                        if(game_state->is_in_real_game)
+                            save_game_into_crt(game_state);
                         c_open_menu();
                     }
                 }else{
@@ -288,7 +314,8 @@ int game_loop(GameState *game_state, bool keys[KEYS_NUM], StaticArray<Event, MAX
 #endif
             
             if(game_state->should_save_game){
-                save_game(game_state);
+                if(game_state->is_in_real_game)
+                    save_game(game_state);
                 game_state->should_save_game = false;
             }
 #if DEBUG_PAUSE
@@ -421,21 +448,38 @@ extern "C" {
     }
 }
 
+void save_game_into_crt(GameState *game_state){
+    CurrentRunData *crt = &game_state->current_run_data;
+    crt->level_num = game_state->level.num;
+    crt->player_lives = game_state->player_lives;
+    crt->time = game_state->time;
+    crt->time_started_counting = game_state->time_started_counting;
+    crt->space_lagged = game_state->space_lagged;
+    crt->game_started = true;
+}
+
 void save_game(GameState *game_state){
+    if(!game_state->is_in_real_game)
+        return;
+    
     OsFile fp = open_user_file("save", "wb");
     if(fp == nullptr){
         printf("Error: Couldn't write save file\n");
         return;
     }
+    
+    save_game_into_crt(game_state);
+    
     write_file(&game_state->stats, sizeof(GameStats), 1, fp);
     i8 level;
+    CurrentRunData *crt = &game_state->current_run_data;
     if(game_state->current_run_data.game_started){
-        level = (i8)game_state->level.num;
+        level = (i8)crt->level_num;
         write_file(&level, sizeof(i8), 1, fp);
-        write_file(&game_state->time, sizeof(game_state->time), 1, fp);
-        write_file(&game_state->time_started_counting, sizeof(game_state->time_started_counting), 1, fp);
-        write_file(&game_state->player_lives, sizeof(game_state->player_lives), 1, fp);
-        write_file(&game_state->space_lagged, sizeof(game_state->space_lagged), 1, fp);
+        write_file(&crt->time, sizeof(crt->time), 1, fp);
+        write_file(&crt->time_started_counting, sizeof(crt->time_started_counting), 1, fp);
+        write_file(&crt->player_lives, sizeof(crt->player_lives), 1, fp);
+        write_file(&crt->space_lagged, sizeof(crt->space_lagged), 1, fp);
     }else{
         level = -1;
         write_file(&level, sizeof(i8), 1, fp);

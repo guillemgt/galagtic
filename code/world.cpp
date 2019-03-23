@@ -149,7 +149,7 @@ void load_level(GameState *game_state, int num){
     
     level->state = 0;
     
-    level_size = Vec2((f32)level->width, (f32)level->height-2.f);
+    level_size = Vec2((f32)level->width, (f32)level->height);
     
     lagged_level->gates.size = 0;
     lagged_level->retractable_spikes.size = 0;
@@ -202,18 +202,17 @@ float some_rand(float x, float y){
     return 1.f+0.5f*(sin(5.f*x)+cos(8.f*y));
 }
 
-void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, BufferAndCount *t_buffer){
+void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer){
     Level *level = &game_state->level;
     auto &layout = level->layout;
-    uint vertex_count = 0;
-    uint t_vertex_count = 0;
+    uint vertex_count = 4*6;
     
     {
         for(int x=0; x<level->width; x++){
             for(int y=0; y<level->height; y++){
                 char c = layout[x][y];
                 if(block_info[c] & BLOCK_IS_TRANSPARENT)
-                    t_vertex_count += 6;
+                    vertex_count += 6;
                 if(c == '#' || c == '@')
                     vertex_count += 6;
                 else if(c == '/' || c == ']' || c == '7' || c == '1')
@@ -224,8 +223,6 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, Buffe
                     vertex_count += 9;
                 //else if((c == '*' || c == '%') && !player.completed_level)
                 //    vertex_count += 6;
-                if(block_info[c] & (BLOCK_HAS_TWO_LAYERS | BLOCK_HAS_TWO_LAYERS_SQUARE))
-                    vertex_count += 6;
             }
         }
         
@@ -233,6 +230,10 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, Buffe
         start_temp_alloc();
         Vertex_PCa *o_vertices = (Vertex_PCa *)temp_alloc(vertex_count*sizeof(Vertex_PCa));
         Vertex_PCa *vertices = o_vertices;
+        
+        {
+            const RgbaColor color = basic_color;
+        }
         
         float fx = 0.f;
         for(int x=0; x<level->width; x++){
@@ -513,40 +514,49 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, Buffe
                         }
                     } break;
                 }
-                if(block_info[c] & BLOCK_HAS_TWO_LAYERS){
-                    const RgbaColor color = {0, 0, 0, 25};
-                    const float disp = 0.05f;
-                    float r0 = disp*((17*x+13*y)%23)/23.f;
-                    float r1 = disp*((13*x+17*y)%23)/23.f;
-                    float r2 = disp*((19*x+11*y)%23)/23.f;
-                    float r3 = disp*((11*x+19*y)%23)/23.f;
-                    Vec3 square[4] = {
-                        Vec3(fx+0.f-r0, fy+0.f-r1, 0.19f),
-                        Vec3(fx+1.f+r1, fy+0.f-r3, 0.19f),
-                        Vec3(fx+0.f-r2, fy+1.f+r0, 0.19f),
-                        Vec3(fx+1.f+r3, fy+1.f+r2, 0.19f),
-                    };
-                    *(vertices++) = {square[0], color};
-                    *(vertices++) = {square[1], color};
-                    *(vertices++) = {square[2], color};
-                    *(vertices++) = {square[2], color};
-                    *(vertices++) = {square[1], color};
-                    *(vertices++) = {square[3], color};
-                }
-                if(block_info[c] & BLOCK_HAS_TWO_LAYERS_SQUARE){
-                    const RgbaColor color = {0, 0, 0, 25};
-                    Vec3 square[4] = {
-                        Vec3(fx+0.f, fy+0.f, 0.19f),
-                        Vec3(fx+1.f, fy+0.f, 0.19f),
-                        Vec3(fx+0.f, fy+1.f, 0.19f),
-                        Vec3(fx+1.f, fy+1.f, 0.19f),
-                    };
-                    *(vertices++) = {square[0], color};
-                    *(vertices++) = {square[1], color};
-                    *(vertices++) = {square[2], color};
-                    *(vertices++) = {square[2], color};
-                    *(vertices++) = {square[1], color};
-                    *(vertices++) = {square[3], color};
+                if(block_info[c] & BLOCK_IS_TRANSPARENT){
+                    if(block_info[c] & BLOCK_HAS_TWO_LAYERS){
+                        const RgbaColor color = {176, 172, 200, 255};
+                        const float disp = 0.05f;
+                        float r0 = disp*((17*x+13*y)%23)/23.f;
+                        float r1 = disp*((13*x+17*y)%23)/23.f;
+                        float r2 = disp*((19*x+11*y)%23)/23.f;
+                        float r3 = disp*((11*x+19*y)%23)/23.f;
+                        Vec3 square[4] = {
+                            Vec3(fx+0.f-r0, fy+0.f-r1, 0.19f),
+                            Vec3(fx+1.f+r1, fy+0.f-r3, 0.19f),
+                            Vec3(fx+0.f-r2, fy+1.f+r0, 0.19f),
+                            Vec3(fx+1.f+r3, fy+1.f+r2, 0.19f),
+                        };
+                        *(vertices++) = {square[0], color};
+                        *(vertices++) = {square[1], color};
+                        *(vertices++) = {square[2], color};
+                        *(vertices++) = {square[2], color};
+                        *(vertices++) = {square[1], color};
+                        *(vertices++) = {square[3], color};
+                    }else if(block_info[c] & BLOCK_HAS_TWO_LAYERS_SQUARE){
+                        const RgbaColor color = {176, 172, 200, 255};
+                        Vec3 square[4] = {
+                            Vec3(fx+0.f, fy+0.f, 0.19f),
+                            Vec3(fx+1.f, fy+0.f, 0.19f),
+                            Vec3(fx+0.f, fy+1.f, 0.19f),
+                            Vec3(fx+1.f, fy+1.f, 0.19f),
+                        };
+                        *(vertices++) = {square[0], color};
+                        *(vertices++) = {square[1], color};
+                        *(vertices++) = {square[2], color};
+                        *(vertices++) = {square[2], color};
+                        *(vertices++) = {square[1], color};
+                        *(vertices++) = {square[3], color};
+                    }else{
+                        const RgbaColor color = {196, 191, 222, 255};
+                        *(vertices++) = {Vec3(fx+0.f, fy+0.f, 0.2f), color};
+                        *(vertices++) = {Vec3(fx+1.f, fy+0.f, 0.2f), color};
+                        *(vertices++) = {Vec3(fx+0.f, fy+1.f, 0.2f), color};
+                        *(vertices++) = {Vec3(fx+0.f, fy+1.f, 0.2f), color};
+                        *(vertices++) = {Vec3(fx+1.f, fy+0.f, 0.2f), color};
+                        *(vertices++) = {Vec3(fx+1.f, fy+1.f, 0.2f), color};
+                    }
                 }
                 fy += 1.f;
             }
@@ -561,49 +571,10 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, Buffe
     }
     
     
-    if(t_buffer != nullptr){
-        start_temp_alloc();
-        Vertex_PN *o_t_vertices = (Vertex_PN *)temp_alloc(t_vertex_count*sizeof(Vertex_PN));
-        Vertex_PN *t_vertices = o_t_vertices;
-        
-        float fx = 0.f;
-        for(int x=0; x<level->width; x++){
-            float fy = 0.f;
-            for(int y=0; y<level->height; y++){
-                char c = layout[x][y];
-                if(block_info[c] & BLOCK_IS_TRANSPARENT){
-                    Vec3 t00 = {0.f, 0.f, 6.28f*some_rand((f32)x, (f32)y)};
-                    Vec3 t01 = {0.f, 1.f, 6.28f*some_rand((f32)x, (f32)y)};
-                    Vec3 t10 = {1.f, 0.f, 6.28f*some_rand((f32)x, (f32)y)};
-                    Vec3 t11 = {1.f, 1.f, 6.28f*some_rand((f32)x, (f32)y)};
-                    u8 tms = rand()%4;
-                    for(u8 i=0; i<tms; i++){
-                        Vec3 tmp = t00;
-                        t00 = t01;
-                        t01 = t11;
-                        t11 = t10;
-                        t10 = tmp;
-                    }
-                    *(t_vertices++) = {Vec3(fx+0.f, fy+0.f, 0.2f), t00};
-                    *(t_vertices++) = {Vec3(fx+1.f, fy+0.f, 0.2f), t10};
-                    *(t_vertices++) = {Vec3(fx+0.f, fy+1.f, 0.2f), t01};
-                    *(t_vertices++) = {Vec3(fx+0.f, fy+1.f, 0.2f), t01};
-                    *(t_vertices++) = {Vec3(fx+1.f, fy+0.f, 0.2f), t10};
-                    *(t_vertices++) = {Vec3(fx+1.f, fy+1.f, 0.2f), t11};
-                }
-                fy += 1.f;
-            }
-            fx += 1.f;
-        }
-        
-        t_buffer->count = (u32)(t_vertices-o_t_vertices);
-        assert(t_buffer->count <= t_vertex_count);
-        set_buffer_data_static(t_buffer->buffer, o_t_vertices, t_buffer->count);
-        end_temp_alloc();
-    }
+    
     
     game_state->gl_objects.shown_level_size = level_size;
-    game_state->gl_objects.screen_translate = Vec2(-0.5f*level->width, -0.5f*level->height);
+    game_state->gl_objects.screen_translate = -0.5f*game_state->gl_objects.shown_level_size;
 }
 
 void load_planet_background(Level *level, BufferAndCount *buffer){
@@ -751,12 +722,12 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
             }
         }
         {
-            RgbaColor color = basic_color;
+            RgbaColor color = {35, 35, 35, 255};
             for(uint k=0; k<level->gates.size; k++){
                 Gate *g = &level->gates[k];
                 Vec2 r = g->r;
                 Vec2 dr = player_r-r-Vec2(0.5f);
-                bool visited_now = (fabs(dr.x) < 0.5f && fabs(dr.y) < 0.5f);
+                bool visited_now = (fabs(dr.x) < 0.5f+player_size.x && fabs(dr.y) < 0.5f+player_size.y);
                 if(visited_now)
                     g->flags |= GF_VISITED;
                 if(g->flags & GF_VISITED && g->flags & GF_IMMORTAL && !visited_now){
@@ -778,17 +749,25 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                 float s = g->state;
                 float t = 1.f-s;
                 
+                const float z = -0.1f;
+                
                 if(g->flags & GF_HORIZONTAL){
+                    float y0 = r.y;
+                    float y1 = r.y+1.f;
+                    float xa0 = r.x;
+                    float xa1 = r.x+s;
+                    float xb0 = r.x+t;
+                    float xb1 = r.x+1.f;
                     Vec3 box[8] = {
-                        Vec3(r.x+0.f, r.y+0.f, 0.f),
-                        Vec3(r.x+s,   r.y+0.f, 0.f),
-                        Vec3(r.x+0.f, r.y+1.f, 0.f),
-                        Vec3(r.x+s,   r.y+1.f, 0.f),
+                        Vec3(xa0, y0, z),
+                        Vec3(xa1, y0, z),
+                        Vec3(xa0, y1, z),
+                        Vec3(xa1, y1, z),
                         
-                        Vec3(r.x+1.f, r.y+0.f, 0.f),
-                        Vec3(r.x+t,   r.y+0.f, 0.f),
-                        Vec3(r.x+1.f, r.y+1.f, 0.f),
-                        Vec3(r.x+t,   r.y+1.f, 0.f),
+                        Vec3(xb0, y0, z),
+                        Vec3(xb1, y0, z),
+                        Vec3(xb0, y1, z),
+                        Vec3(xb1, y1, z),
                     };
                     *(vertices++) = {box[0], color};
                     *(vertices++) = {box[1], color};
@@ -805,15 +784,15 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                     *(vertices++) = {box[7], color};
                 }else{
                     Vec3 box[8] = {
-                        Vec3(r.x+0.f, r.y+0.f, 0.f),
-                        Vec3(r.x+1.f, r.y+0.f, 0.f),
-                        Vec3(r.x+0.f, r.y+s,   0.f),
-                        Vec3(r.x+1.f, r.y+s,   0.f),
+                        Vec3(r.x+0.f, r.y+0.f, z),
+                        Vec3(r.x+1.f, r.y+0.f, z),
+                        Vec3(r.x+0.f, r.y+s,   z),
+                        Vec3(r.x+1.f, r.y+s,   z),
                         
-                        Vec3(r.x+0.f, r.y+t,   0.f),
-                        Vec3(r.x+1.f, r.y+t,   0.f),
-                        Vec3(r.x+0.f, r.y+1.f, 0.f),
-                        Vec3(r.x+1.f, r.y+1.f, 0.f),
+                        Vec3(r.x+0.f, r.y+t,   z),
+                        Vec3(r.x+1.f, r.y+t,   z),
+                        Vec3(r.x+0.f, r.y+1.f, z),
+                        Vec3(r.x+1.f, r.y+1.f, z),
                     };
                     *(vertices++) = {box[0], color};
                     *(vertices++) = {box[1], color};

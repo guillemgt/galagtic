@@ -30,6 +30,8 @@ enum {
     MB_LS_PLAY,
     MB_LS_PLAY_PLUS,
     MB_LS_BACK,
+    MB_LS_RIGHT,
+    MB_LS_LEFT
 };
 enum {
     MB_SETTINGS_SOUND,

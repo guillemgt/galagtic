@@ -28,8 +28,16 @@ void menu_load_level(GameState *game_state){
 const float menu_right_top_y = 0.855f;
 const float menu_option_height = 0.1f;
 
+const float level_select_miniscreen_top = 0.9f;
+const float level_select_miniscreen_left = 0.1f;
+const float level_select_miniscreen_bottom = 0.4f;
+
 int select_menu_option(GameState *game_state){
     MenuInfo *menu = &game_state->menu_info;
+    
+    if(menu->selected_option < 0)
+        return 1;
+    
     switch(menu->screen){
         case MS_MAIN:
         switch(menu->selected_option){
@@ -103,12 +111,25 @@ int select_menu_option(GameState *game_state){
         case MS_LEVEL_SELECT:
         switch(menu->selected_option){
             case MB_LS_PLAY:
-            break;
             case MB_LS_PLAY_PLUS:
+            menu->fade_alpha = 0.f;
+            menu->fade_direction = 1.f;
             break;
             case MB_LS_BACK:
             menu->selected_option = menu->last_selected_option;
             menu->screen = menu->last_screen;
+            break;
+            case MB_LS_RIGHT:
+            if(menu->shown_level < game_state->stats.unlocked_levels){
+                menu->shown_level++;
+                menu_load_level(game_state);
+            }
+            break;
+            case MB_LS_LEFT:
+            if(menu->shown_level > 1){
+                menu->shown_level--;
+                menu_load_level(game_state);
+            }
             break;
         }
         default:
@@ -167,6 +188,8 @@ int menu_mousemove(GameState *game_state, Vec2 position){
     if(menu->fade_alpha >= 0.f)
         return 0;
     
+    menu->selected_option = -1;
+    
     GLObjects *gl = &game_state->gl_objects;
     
     const float prop = 1.f/1.2f;
@@ -182,10 +205,29 @@ int menu_mousemove(GameState *game_state, Vec2 position){
     
     //printf("%g %g\n", r.x, r.y);
     
+    float top_y;
+    
+    if(menu->screen == MS_LEVEL_SELECT){
+        if(r.y > level_select_miniscreen_bottom){
+            if(r.y > level_select_miniscreen_top)
+                return 0;
+            if(r.x > 0.3f && r.x < 0.7f)
+                return 0;
+            
+            menu->selected_option = r.x > 0.5f ? 3 : 4;
+            
+            return 1;
+        }else{
+            top_y = level_select_miniscreen_bottom;
+        }
+    }else{
+        top_y = menu_right_top_y;
+    }
+    
     if(r.x < 0.42f)
         return 0;
     
-    float opt_candidate = (menu_right_top_y - r.y) / menu_option_height;
+    float opt_candidate = (top_y - r.y) / menu_option_height;
     float frac = fmod(opt_candidate, 1.f);
     if(frac < 0.15f || frac > 0.85f)
         return 0;
@@ -201,6 +243,7 @@ int menu_mousemove(GameState *game_state, Vec2 position){
         if(menu->selected_option >= menu_total_options[menu->screen])
             return 0;
     }
+    
     
     return 1;
 }
@@ -226,7 +269,7 @@ void process_menu(GameState *game_state){
                     c_close_menu();
                     break;
                 }
-            }else if(menu->screen){
+            }else if(menu->screen == MS_INGAME){
                 switch(menu->selected_option){
                     case MB_INGAME_TO_MAIN:
                     menu->screen = MS_MAIN;
@@ -234,8 +277,19 @@ void process_menu(GameState *game_state){
                     menu->fade_direction = -1.f;
                     break;
                 }
+            }else if(menu->screen == MS_LEVEL_SELECT){
+                switch(menu->selected_option){
+                    case MB_LS_PLAY:
+                    new_level_select_game(game_state, menu->shown_level, false);
+                    c_close_menu();
+                    break;
+                    case MB_LS_PLAY_PLUS:
+                    new_level_select_game(game_state, menu->shown_level, true);
+                    c_close_menu();
+                    break;
+                }
+                return;
             }
-            return;
         }
     }
     
@@ -340,7 +394,7 @@ void draw_menu(GameState *game_state){
             verts += render_text(0.42f, left_y, -0.9f, FONT_QUALITY_64, "settings\n", verts, 0.07f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
         } break;
         case MS_LEVEL_SELECT:
-        right_y = 0.4f;
+        right_y = level_select_miniscreen_bottom;
         break;
     }
     
@@ -384,11 +438,22 @@ void draw_menu(GameState *game_state){
         ADD_MENU_OPTION("quit");
         break;
         
-        case MS_LEVEL_SELECT:
-        ADD_MENU_OPTION("play");
-        ADD_MENU_OPTION("play+");
-        ADD_MENU_OPTION("back");
-        break;
+        case MS_LEVEL_SELECT: {
+            ADD_MENU_OPTION("play");
+            ADD_MENU_OPTION("play+");
+            ADD_MENU_OPTION("back");
+            
+            const float y = 0.5f*(level_select_miniscreen_top + level_select_miniscreen_bottom) - 0.035f;
+            
+            if(menu->shown_level < game_state->stats.unlocked_levels){
+                verts += render_text(1.f-level_select_miniscreen_left, y, -0.9f, FONT_QUALITY_64, ">", verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_LEFT);
+            }
+            option_num++;
+            if(menu->shown_level > 1){
+                verts += render_text(level_select_miniscreen_left-0.04f, y, -0.9f, FONT_QUALITY_64, "<", verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_RIGHT);
+            }
+            option_num++;
+        } break;
         
         
         case MS_SETTINGS:
@@ -431,8 +496,8 @@ void draw_menu(GameState *game_state){
     if(game_state->menu_info.screen == MS_LEVEL_SELECT){
         int x_0;
         int y_0, y_1;
-        Vec2 r = {0.1f, 0.6f};
-        float r2y = 0.1f;
+        Vec2 r = {level_select_miniscreen_left, 1.f-level_select_miniscreen_bottom};
+        float r2y = 1.f-level_select_miniscreen_top;
         v = gl->actual_screen_size;
         if(gl->actual_screen_ratio < prop){
             x_0 = (int)(v.y*(r.x-0.5f) + 0.5f*v.x);

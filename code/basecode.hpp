@@ -58,6 +58,7 @@ struct GameState {
     
     bool was_in_play_mode = false;
     bool should_save_game, space_lagged;
+    bool is_in_real_game; // ie not in level select mode
 };
 
 #endif

@@ -38,18 +38,6 @@ void init_openGL(GameState *game_state){
     gl->pt_program.sampler    = glGetUniformLocation(gl->pt_program.id, "u_sampler");
     gl->pt_program.color_multiplier = glGetUniformLocation(gl->pt_program.id, "u_color_multiplier");
     
-    const char ptt_shader[] =
-#include "Shaders/ptt_shader.glsl"
-        ;
-    gl->ptt_program.id = load_shaders_by_text(ptt_shader);
-    gl->ptt_program.position   = glGetAttribLocation (gl->ptt_program.id, "a_position");
-    gl->ptt_program.tex_coords = glGetAttribLocation (gl->ptt_program.id, "a_tex_coords");
-    gl->ptt_program.matrix     = glGetUniformLocation(gl->ptt_program.id, "u_matrix");
-    gl->ptt_program.sampler0   = glGetUniformLocation(gl->ptt_program.id, "u_sampler0");
-    gl->ptt_program.sampler1   = glGetUniformLocation(gl->ptt_program.id, "u_sampler1");
-    gl->ptt_program.t          = glGetUniformLocation(gl->ptt_program.id, "u_t");
-    gl->ptt_program.color_multiplier = glGetUniformLocation(gl->ptt_program.id, "u_color_multiplier");
-    
     const char pta_shader[] =
 #include "Shaders/pta_shader.glsl"
         ;
@@ -77,11 +65,9 @@ void init_openGL(GameState *game_state){
     glGenBuffers(1, &gl->loading_buffer.buffer);
     glGenBuffers(1, &gl->player_buffer.buffer);
     glGenBuffers(1, &gl->particle_buffer.buffer);
-    glGenBuffers(1, &gl->noise_buffer.buffer);
     glGenBuffers(1, &gl->fade_buffer.buffer);
     glGenBuffers(1, &gl->text_buffer.buffer);
     glGenBuffers(1, &gl->ui_textures_buffer.buffer);
-    glGenBuffers(1, &gl->tmp_buffer.buffer);
     glGenBuffers(1, &gl->planet_buffer.buffer);
 #if OS == OS_IOS
     glGenBuffers(1, &gl->buttons_buffer.buffer);
@@ -145,15 +131,6 @@ void init_openGL(GameState *game_state){
     glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
     check_openGL_error();
     
-    glGenVertexArrays(1, &gl->noise_vao);
-    glBindVertexArray(gl->noise_vao);
-    glEnableVertexAttribArray(gl->ptt_program.position);
-    glEnableVertexAttribArray(gl->ptt_program.tex_coords);
-    glBindBuffer(GL_ARRAY_BUFFER, gl->noise_buffer.buffer);
-    glVertexAttribPointer(gl->ptt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PN), (void *)0);
-    glVertexAttribPointer(gl->ptt_program.tex_coords, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PN), (void *)(sizeof(Vec3)));
-    check_openGL_error();
-    
     glGenVertexArrays(1, &gl->fade_vao);
     glBindVertexArray(gl->fade_vao);
     glEnableVertexAttribArray(gl->pca_program.position);
@@ -182,15 +159,6 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->ui_textures_buffer.buffer);
     glVertexAttribPointer(gl->pt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)0);
     glVertexAttribPointer(gl->pt_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)(sizeof(Vec3)));
-    check_openGL_error();
-    
-    glGenVertexArrays(1, &gl->tmp_vao);
-    glBindVertexArray(gl->tmp_vao);
-    glEnableVertexAttribArray(gl->pca_program.position);
-    glEnableVertexAttribArray(gl->pca_program.color);
-    glBindBuffer(GL_ARRAY_BUFFER, gl->tmp_buffer.buffer);
-    glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
-    glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
     check_openGL_error();
     
 #if OS == OS_IOS
@@ -295,7 +263,7 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
     load_particles_into_buffer(game_state, &gl->particle_buffer);
     load_goal_into_buffer(game_state, &gl->goal_buffer);
     if(should_redraw_level){
-        load_level_into_buffer(game_state, &gl->level_buffer, &gl->noise_buffer);
+        load_level_into_buffer(game_state, &gl->level_buffer);
         load_changing_level_into_buffer(&game_state->level, &gl->level_changing_buffers[0]);
         change_level_state(&game_state->level);
         load_changing_level_into_buffer(&game_state->level, &gl->level_changing_buffers[1]);
@@ -306,52 +274,29 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
         load_planet_background(&game_state->level, &gl->planet_buffer);
     }
     
-    Mat4 final_matrix;
-    Vec2 screen_size_in_level_tr;
-    Vec2 screen_size_in_level_bl;
-    if(gl->shown_level_size.y/gl->shown_level_size.x < gl->screen_size.y/gl->screen_size.x){
-        // Sides of level touch sides of screen
-        float scale_factor = 2.f/gl->shown_level_size.x;
-        float other = scale_factor*gl->screen_size.x/gl->actual_screen_size.y;
-        final_matrix = get_translation_matrix(Vec3(0.f, -screen_portion_of_ui_top+screen_portion_of_ui_bottom, 0.f)) * get_scale_matrix(scale_factor, other, 1.f) * get_translation_matrix(Vec3(gl->screen_translate.x, gl->screen_translate.y, 0.f));
-        Vec2 ssil = Vec2(gl->shown_level_size.x/2.f, 1.f/other);
-        screen_size_in_level_bl = -ssil - gl->screen_translate;
-        screen_size_in_level_tr =  ssil - gl->screen_translate;
-    }else{
-        // Top and bottom of level touch top and bottom of screen
-        float scale_factor = 2.f/gl->shown_level_size.y*gl->screen_size.y/gl->actual_screen_size.y;
-        float other = scale_factor*gl->actual_screen_size.y/gl->screen_size.x;
-        final_matrix = get_translation_matrix(Vec3(0.f, -screen_portion_of_ui_top+screen_portion_of_ui_bottom, 0.f)) * get_scale_matrix(other, scale_factor, 1.f) * get_translation_matrix(Vec3(gl->screen_translate.x, gl->screen_translate.y, 0.f));
-        Vec2 ssil = Vec2(1.f/other, gl->shown_level_size.y/2.f);
-        screen_size_in_level_bl = -ssil - gl->screen_translate;
-        screen_size_in_level_tr =  ssil - gl->screen_translate;
-    }
+    float scale_to_match_x = 2.f/gl->shown_level_size.x;
+    float scale_to_match_y = 2.f/gl->shown_level_size.y * gl->actual_screen_ratio;
+    float scale_to_match_y_with_ui = 2.f/(gl->shown_level_size.y-1.f) * (gl->screen_size.y / gl->actual_screen_size.x);
+    float min_scale = min(scale_to_match_x, min(scale_to_match_y, scale_to_match_y_with_ui));
     
+    Mat4 final_matrix = get_scale_matrix(min_scale, min_scale / gl->actual_screen_ratio, 1.f) * get_translation_matrix(Vec3(gl->screen_translate.x, gl->screen_translate.y, 0.f));
+    
+    if(min_scale == scale_to_match_y_with_ui)
+        final_matrix = get_translation_matrix(Vec3(0.f, -0.5f*screen_portion_of_ui_top, 0.f)) * final_matrix;
     
     Mat4 ui_matrix = get_translation_matrix(Vec3(-1.f, -1.f, 0.f)) * get_scale_matrix(2.f, 2.f/gl->actual_screen_ratio, 1.f);
     
     print_time(00);
     
     glClearColor(basic_color.r/255.f, basic_color.g/255.f, basic_color.b/255.f, 1.f);
+    //glClearColor(0.f, 0.f, 0.f, 1.f);
+    //glClearColor(45.f/255.f, 45.f/255.f, 45.f/255.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    glUseProgram(gl->ptt_program.id);
-    glUniformMatrix4fv(gl->ptt_program.matrix, 1, GL_FALSE, &final_matrix.values[0][0]);
-    float t = 1.f;//-0.4f*MAX(MIN(rendered_player.cancel_next_level_in, 1.f), 0);
-    glUniform3f(gl->ptt_program.color_multiplier, 1.f, t, t);
-    
-    if(gl->noise_buffer.count > 0){
-        glUniform1i(gl->ptt_program.sampler0, 1);
-        glUniform1i(gl->ptt_program.sampler1, 3);
-        glUniform1f(gl->ptt_program.t, game_state->time);
-        glBindVertexArray(gl->noise_vao);
-        glDrawArrays(GL_TRIANGLES, 0, gl->noise_buffer.count);
-        check_openGL_error();
-    }
     
     glUseProgram(gl->pt_program.id);
     glUniformMatrix4fv(gl->pt_program.matrix, 1, GL_FALSE, &final_matrix.values[0][0]);
-    glUniform3f(gl->pt_program.color_multiplier, 1.f, t, t);
+    glUniform3f(gl->pt_program.color_multiplier, 1.f, 1.f, 1.f);
     
     if(gl->planet_buffer.count > 0){
         glUniform1i(gl->pt_program.sampler, 1);
@@ -560,31 +505,32 @@ void change_window_size(GameState *game_state, Vec2 size){
     gl->screen_size.x = gl->actual_screen_size.x;
     gl->screen_size.y = (1.f - screen_portion_of_ui_top - screen_portion_of_ui_bottom)*gl->actual_screen_size.y;
     gl->actual_screen_ratio = gl->actual_screen_size.y / gl->actual_screen_size.x;
-    if(window_size.x >= window_size.y){
+    if(size.x >= size.y){
         gl->screen_ratio.x = (float) window_size.y / window_size.x;
         gl->screen_ratio.y = 1.f;
     }else{
         gl->screen_ratio.x = 1.f;
         gl->screen_ratio.y = (float) window_size.x / window_size.x;
     }
-    glViewport(0, 0, window_size.x, window_size.y);
-    glScissor(0, 0, window_size.x, window_size.y);
+    glViewport(0, 0, (int)size.x, (int)size.y);
+    glScissor( 0, 0, (int)size.x, (int)size.y);
     
     {
-        const float texture_size = 256.f;
-        const float outer_picture_size = 32.f;
-        const float inner_picture_size = 30.f;
-        const float picture_margin = 1.f;
-        const float current_frame_x = 7.f;
-        const float current_frame_y = 0.f;
+        const float texture_size = 2048.f;
+        const float outer_picture_size = 266.f;
+        const float inner_picture_size = 256.f;
+        const float picture_margin = 5.f;
+        const int current_frame_x = 2;
+        const int current_frame_y = 4;
+        Vec2 t01 = Vec2(current_frame_x*outer_picture_size+picture_margin, texture_size-(current_frame_y*outer_picture_size+picture_margin))/texture_size;
+        Vec2 t11 = t01+Vec2(inner_picture_size/texture_size, 0.f);
+        Vec2 t00 = t01+Vec2(0.f, -inner_picture_size/texture_size);
+        Vec2 t10 = t11+Vec2(0.f, -inner_picture_size/texture_size);
+        
         float xmargin = 0.9f*screen_portion_of_ui_top*gl->actual_screen_ratio;
         float ymargin = (1.f-0.9f*screen_portion_of_ui_top)*gl->actual_screen_ratio;
         float pun = 0.8f*screen_portion_of_ui_top*gl->actual_screen_ratio;
-        Vec2 t00, t01, t10, t11;
-        t00 = Vec2(current_frame_x*outer_picture_size+picture_margin, current_frame_y*outer_picture_size+picture_margin)/texture_size;
-        t10 = t00+Vec2(inner_picture_size/texture_size, 0.f);
-        t01 = t00+Vec2(0.f, inner_picture_size/texture_size);
-        t11 = t10+Vec2(0.f, inner_picture_size/texture_size);
+        
         Vertex_PT o_vertices[] = {
             {Vec3(xmargin+0.f, ymargin+0.f, -0.9f), t00},
             {Vec3(xmargin+pun, ymargin+0.f, -0.9f), t10},
@@ -595,27 +541,5 @@ void change_window_size(GameState *game_state, Vec2 size){
         };
         gl->ui_textures_buffer.count = ArrayCount(o_vertices);
         set_buffer_data_dynamic(gl->ui_textures_buffer.buffer, o_vertices, ArrayCount(o_vertices));
-    }
-    {
-        RgbaColor c = {155, 0, 0, 255};
-        float y0 = screen_portion_of_ui_bottom * gl->actual_screen_ratio;
-        float y1 = screen_portion_of_ui_top    * gl->actual_screen_ratio;
-        Vertex_PCa o_vertices[] = {
-            {Vec3(0.f, 0.f, -0.8f), c},
-            {Vec3(1.f, 0.f, -0.8f), c},
-            {Vec3(0.f, y0,   -0.8f), c},
-            {Vec3(0.f, y0,   -0.8f), c},
-            {Vec3(1.f, 0.f, -0.8f), c},
-            {Vec3(1.f, y0,   -0.8f), c},
-            
-            {Vec3(0.f, gl->actual_screen_ratio,    -0.8f), c},
-            {Vec3(1.f, gl->actual_screen_ratio,    -0.8f), c},
-            {Vec3(0.f, gl->actual_screen_ratio-y1, -0.8f), c},
-            {Vec3(0.f, gl->actual_screen_ratio-y1, -0.8f), c},
-            {Vec3(1.f, gl->actual_screen_ratio,    -0.8f), c},
-            {Vec3(1.f, gl->actual_screen_ratio-y1, -0.8f), c},
-        };
-        gl->tmp_buffer.count = ArrayCount(o_vertices);
-        set_buffer_data_dynamic(gl->tmp_buffer.buffer, o_vertices, ArrayCount(o_vertices));
     }
 }

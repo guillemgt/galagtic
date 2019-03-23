@@ -22,9 +22,10 @@ const float wall_jump_speed_x = 10.f;
 const float after_wall_jump_acceleration = 0.2f*60.f;
 
 const float falling_things_speed = -0.5f;
-const Vec2 player_size = Vec2(0.15625f, 0.390625f);
-const Vec2 player_box_size = Vec2(0.15625f, 0.1953125f);
-const float player_y_offset = 0.f;
+//const Vec2 player_size = Vec2(0.15625f, 0.390625f);
+const Vec2 player_size = Vec2(0.12109375f, 0.419921875f); // Hitbox for solid collisions
+const Vec2 player_box_size = Vec2(0.12109375f, 0.1953125f); // Hitbox for death/key collisions
+const Vec2 player_graphic_offset = Vec2(0.025f, 0.02f); // Offset to make the player position match the position in the textures
 
 const Vec2 enemies_box_size = Vec2(0.2f, 0.2f);
 
@@ -54,10 +55,11 @@ void init_messages(GameState *game_state){
     game_state->next_free_snapshot = 0;
     game_state->last_rendered_snapshot = 0;
 }
-void add_particle_message(GameState *game_state, Vec2 r, bool is_death){
+void add_particle_message(GameState *game_state, Vec2 r, Vec2 v, bool is_death){
     int next_free_slot = game_state->next_free_particle_slot;
     game_state->particle_messages[next_free_slot].time = game_state->time + game_state->render_lag_time;
     game_state->particle_messages[next_free_slot].r = r;
+    game_state->particle_messages[next_free_slot].v = v;
     game_state->particle_messages[next_free_slot].is_death = is_death;
     next_free_slot = (next_free_slot + 1) % MAX_UPS;
     game_state->particle_messages[next_free_slot].time = INFINITY;
@@ -443,7 +445,7 @@ void process_movement(GameState *game_state, u8 keys){
         }
     }
     
-    if(((player->flags & PM_PUSHES_OBJECT_RIGHT) && (player->flags & PM_PUSHES_TILE_LEFT)) || ((player->flags & PM_PUSHES_OBJECT_LEFT) && (player->flags & PM_PUSHES_TILE_RIGHT)) || ((player->flags & PM_PUSHES_OBJECT_TOP) && (player->flags & PM_PUSHES_TILE_BOTTOM)) || ((player->flags & PM_PUSHES_OBJECT_BOTTOM) && (player->flags & PM_PUSHES_TILE_TOP)))
+    if(((player->flags & PM_PUSHES_RIGHT) && (player->flags & PM_PUSHES_LEFT)) || ((player->flags & PM_PUSHES_LEFT) && (player->flags & PM_PUSHES_RIGHT)) || ((player->flags & PM_PUSHES_TOP) && (player->flags & PM_PUSHES_BOTTOM)) || ((player->flags & PM_PUSHES_BOTTOM) && (player->flags & PM_PUSHES_TOP)))
         kill = true;
     
     player->flags &= ~PM_STICKING_TO_WALL;
@@ -537,7 +539,7 @@ void process_movement(GameState *game_state, u8 keys){
                 u16 flags = block_info[block];
                 if(flags & BLOCK_IS_GOAL){
                     if(!level->completed){
-                        add_particle_message(game_state, Vec2((float)x+0.5f, (float)y+0.5f), false);
+                        add_particle_message(game_state, Vec2((float)x+0.5f, (float)y+0.5f), Vec2(0.f), false);
                         level->completed = true;
                         add_sound_message(game_state, SOUND_WIN);
                         for(int bx=0; bx<level->width; bx++){
@@ -616,7 +618,7 @@ void process_movement(GameState *game_state, u8 keys){
     
     out_of_for:
     if(kill){
-        add_particle_message(game_state, player->r, true);
+        add_particle_message(game_state, player->r, player->v, true);
         add_sound_message(game_state, SOUND_DEATH);
         
         game_state->player_lives--;
@@ -652,8 +654,10 @@ void process_movement(GameState *game_state, u8 keys){
             game_state->draw_new_level_time = game_state->time + game_state->render_lag_time;
         }*/
         if(player->r.x < player_size.x || player->r.y < player_size.y || player->r.x >= (f32)level->width-player_size.x){
-            load_level(game_state, level->num+1);
-            game_state->draw_new_level_time = game_state->time + game_state->render_lag_time;
+            if(game_state->is_in_real_game){
+                load_level(game_state, level->num+1);
+                game_state->draw_new_level_time = game_state->time + game_state->render_lag_time;
+            }
         }
     }
     
@@ -796,6 +800,7 @@ void process_messages(GameState *game_state){
             game_state->last_read_particle_slot= (game_state->last_read_particle_slot+1) % MAX_UPS;
             float fx = message.r.x;
             float fy = message.r.y;
+            Vec2 v = message.v;
             
             if(message.is_death){
                 int s = particles.size;
@@ -803,7 +808,7 @@ void process_messages(GameState *game_state){
                 assert(particles.size <= MAX_PARTICLES);
                 for(int px=-6; px<6; px++){
                     for(int py=-16; py<16; py++){
-                        Vec2 speed = (1.f + 7.f*rand()/RAND_MAX)*(Vec2)Angle(2.f*M_PI*rand()/RAND_MAX);
+                        Vec2 speed = 0.1f*v + (1.f + 6.f*rand()/RAND_MAX)*(Vec2)Angle(2.f*M_PI*rand()/RAND_MAX);
                         particles[s++] = {Vec2(fx+px/30.f, fy+py/30.f), speed, {60, 60, 60, 255}};
                     }
                 }
@@ -838,13 +843,13 @@ void process_messages(GameState *game_state){
         }
         for(int i=particles.size-1; i>=0; i--){
             Particle *particle = &particles[i];
-            if(particle->r.y < 1.f || particle->r.x < 1.f || particle->r.x > level_size.x-1.f){
+            if(particle->r.y < 0.2f || particle->r.x < 0.2f || particle->r.x > level_size.x-0.2f){
                 particles.remove(i);
                 continue;
             }
             
             particle->r += particle->v*TIME_STEP;
-            particle->v.y += gravity*TIME_STEP;
+            particle->v.y += 0.5f*gravity*TIME_STEP;
         }
     }
     
@@ -869,7 +874,7 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
     //if(drawn_player.level_time < TIME_STEP){
     //should_update_level = true;
     //}
-    Vec2 r = drawn_player.r+Vec2(0.f, player_y_offset);
+    Vec2 r = drawn_player.r + player_graphic_offset;
     const float texture_size = 2048.f;
     const float outer_picture_size = 266.f;
     const float inner_picture_size = 256.f;
@@ -934,12 +939,28 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
         t10 = t11+Vec2(0.f, -inner_picture_size/texture_size);
     }
     const float drawn_player_size = 0.5f;
+    
     *(vertices++) = {Vec3(r.x-drawn_player_size, r.y-drawn_player_size, 0.1f), t00};
     *(vertices++) = {Vec3(r.x+drawn_player_size, r.y-drawn_player_size, 0.1f), t10};
     *(vertices++) = {Vec3(r.x-drawn_player_size, r.y+drawn_player_size, 0.1f), t01};
     *(vertices++) = {Vec3(r.x-drawn_player_size, r.y+drawn_player_size, 0.1f), t01};
     *(vertices++) = {Vec3(r.x+drawn_player_size, r.y-drawn_player_size, 0.1f), t10};
     *(vertices++) = {Vec3(r.x+drawn_player_size, r.y+drawn_player_size, 0.1f), t11};
+    
+#if 0
+    { // This is to verify that the player hitbox matches the texture
+        r = drawn_player.r;
+        Vec2 t = Vec2(0.5f*outer_picture_size+picture_margin, texture_size-(0.5f*outer_picture_size+picture_margin))/texture_size;
+        float dx = player_size.x;
+        float dy = player_size.y;
+        *(vertices++) = {Vec3(r.x-dx, r.y-dy, 0.1f), t};
+        *(vertices++) = {Vec3(r.x+dx, r.y-dy, 0.1f), t};
+        *(vertices++) = {Vec3(r.x-dx, r.y+dy, 0.1f), t};
+        *(vertices++) = {Vec3(r.x-dx, r.y+dy, 0.1f), t};
+        *(vertices++) = {Vec3(r.x+dx, r.y-dy, 0.1f), t};
+        *(vertices++) = {Vec3(r.x+dx, r.y+dy, 0.1f), t};
+    }
+#endif
     
     if(!game_state->completion_snapshots[game_state->last_rendered_snapshot]){
         r = game_state->lagged_level.key_r;

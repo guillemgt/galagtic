@@ -14,6 +14,9 @@ extern "C" {
 
 void new_game(GameState *game_state, bool newer_game);
 void continue_game(GameState *game_state);
+void new_level_select_game(GameState *game_state, int num, bool newer_game);
+
+void save_game_into_crt(GameState *game_state);
 void save_game(GameState *game_state);
 void load_game(GameState *game_state);
 

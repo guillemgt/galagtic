@@ -61,7 +61,7 @@ const u32 PM_WALL_JUMPING_RIGHT     = 0x00040000;
 const u32 PM_WALL_JUMPING_LEFT      = 0x00080000;
 const u32 PM_STICKING_TO_WALL = PM_STICKING_TO_WALL_RIGHT | PM_STICKING_TO_WALL_LEFT;
 const u32 PM_WALL_JUMPING = PM_WALL_JUMPING_RIGHT | PM_WALL_JUMPING_LEFT;
-const u32 PM_DISABLED = 0x80000000;
+const u32 PM_DISABLED               = 0x80000000;
 const u32 PM_LOOKING_LEFT           = 0x00100000;
 
 struct SoundMessage {
@@ -69,7 +69,7 @@ struct SoundMessage {
     u8 sound;
 };
 struct ParticleMessage {
-    Vec2 r;
+    Vec2 r, v;
     float time;
     bool is_death;
 };

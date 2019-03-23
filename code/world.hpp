@@ -31,7 +31,7 @@ const RgbaColor level_color = {200, 200, 200, 255};
 extern u16  block_info[256];
 
 void load_world(GameState *game_state);
-void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, BufferAndCount *t_buffer);
+void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer);
 void load_changing_level_into_buffer(Level *level, BufferAndCount *buffer);
 void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer);
 void load_planet_background(Level *level, BufferAndCount *buffer);
