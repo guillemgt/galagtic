@@ -9,6 +9,6 @@ set OUTPUT=build\play.html
 
 pushd lag-wasm
 
-%CC% %SOURCES% --bind -s STB_IMAGE=1 -std=c++11 %LDFLAGS% -I%INC_PATH% -o %OUTPUT% --preload-file ../run_tree -s WASM=1 -s ASSERTIONS=2 -s USE_FREETYPE=1 -s TOTAL_MEMORY=65536000 -s USE_SDL=1 --js-library library.js --shell-file shell.html -s EXPORTED_FUNCTIONS="['_main', '_jsResizeWindow', '_c_close_menu', '_c_open_menu', '_set_option']" -s USE_WEBGL2=1 --use-preload-plugins
+%CC% %SOURCES% --bind -std=c++11 %LDFLAGS% -I%INC_PATH% -o %OUTPUT% --preload-file ../run_tree -s WASM=1 -s ASSERTIONS=2 -s TOTAL_MEMORY=131072000 --js-library library.js --shell-file shell.html -s EXPORTED_FUNCTIONS="['_main']" -s USE_WEBGL2=1 --use-preload-plugins -g
 
 popd

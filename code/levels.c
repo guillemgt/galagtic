@@ -30,8 +30,8 @@ Vec2 enemy_info_1[] = {
     {13.5f, 1.5f},
 };
 
-#define PLATFORM_INFO(n) { ArrayCount(platform_info_##n ), ArrayCount(platform_info_##n ), platform_info_##n }
-#define ENEMY_INFO(n) { ArrayCount(enemy_info_##n ), ArrayCount(enemy_info_##n ), enemy_info_##n }
+#define PLATFORM_INFO(n) { ArraySize(platform_info_##n ), ArraySize(platform_info_##n ), platform_info_##n }
+#define ENEMY_INFO(n) { ArraySize(enemy_info_##n ), ArraySize(enemy_info_##n ), enemy_info_##n }
 
 LevelInfo all_levels[] = {
     {
@@ -203,7 +203,7 @@ LevelInfo all_levels[] = {
             "#  .             #>  <#",
             "#  .             #>  <#",
             "#  .             #>  <#",
-            "#^X.X^^^^^^^^^^^^#/^^]#",
+            "#^ . ^^^^^^^^^^^^#/^^]#",
             "###H###################",
         },
     },

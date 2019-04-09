@@ -4,13 +4,8 @@
 #include "world.hpp"
 #include "player.hpp"
 
-extern "C" {
-    void c_close_menu();
-    void c_open_menu();
-#if OS == OS_WASM
-    void set_option(int option, int value);
-#endif
-}
+void open_menu(GameState *game_state);
+void close_menu(GameState *game_state);
 
 void new_game(GameState *game_state, bool newer_game);
 void continue_game(GameState *game_state);

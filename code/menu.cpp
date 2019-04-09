@@ -1,5 +1,4 @@
-#include "basecode/os.hpp"
-#include "basecode/fonts.hpp"
+#include "include/misc_tools.hpp"
 
 #include "basecode.hpp"
 
@@ -75,7 +74,7 @@ int select_menu_option(GameState *game_state){
         case MS_INGAME:
         switch(menu->selected_option){
             case MB_INGAME_RESUME:
-            c_close_menu();
+            close_menu(game_state);
             break;
             
             case MB_INGAME_SETTINGS:
@@ -144,40 +143,40 @@ int menu_keydown(GameState *game_state, char key){
         return 1;
     
     switch(key){
-        case KEYS_UP:
+        case GGTPK_UP:
         do{
             menu->selected_option = (menu->selected_option+menu_total_options[menu->screen]-1) % menu_total_options[menu->screen];
         }while(menu->screen == MS_MAIN && menu->disabled_options[menu->selected_option]);
         break;
         
-        case KEYS_DOWN:
+        case GGTPK_DOWN:
         do{
             menu->selected_option = (menu->selected_option+1) % menu_total_options[menu->screen];
         }while(menu->screen == MS_MAIN && menu->disabled_options[menu->selected_option]);
         break;
         
-        case KEYS_RIGHT:
+        case GGTPK_RIGHT:
         if(menu->screen == MS_LEVEL_SELECT && menu->shown_level < game_state->stats.unlocked_levels){
             menu->shown_level++;
             menu_load_level(game_state);
         }
         break;
         
-        case KEYS_LEFT:
+        case GGTPK_LEFT:
         if(menu->screen == MS_LEVEL_SELECT && menu->shown_level > 1){
             menu->shown_level--;
             menu_load_level(game_state);
         }
         break;
         
-        case KEYS_SPACE:
-        case KEYS_ENTER:
+        case GGTPK_SPACE:
+        case GGTPK_RETURN:
         return select_menu_option(game_state);
         break;
         
-        case KEYS_ESC:
+        case GGTPK_ESC:
         if(menu->screen == MS_INGAME)
-            c_close_menu();
+            close_menu(game_state);
         break;
     }
     return 1;
@@ -228,7 +227,7 @@ int menu_mousemove(GameState *game_state, Vec2 position){
         return 0;
     
     float opt_candidate = (top_y - r.y) / menu_option_height;
-    float frac = fmod(opt_candidate, 1.f);
+    float frac = fmodf(opt_candidate, 1.f);
     if(frac < 0.15f || frac > 0.85f)
         return 0;
     int opt = (int)opt_candidate;
@@ -258,15 +257,15 @@ void process_menu(GameState *game_state){
                 switch(menu->selected_option){
                     case 0:
                     continue_game(game_state);
-                    c_close_menu();
+                    close_menu(game_state);
                     break;
                     case 1:
                     new_game(game_state, false);
-                    c_close_menu();
+                    close_menu(game_state);
                     break;
                     case 2:
                     new_game(game_state, true);
-                    c_close_menu();
+                    close_menu(game_state);
                     break;
                 }
             }else if(menu->screen == MS_INGAME){
@@ -281,11 +280,11 @@ void process_menu(GameState *game_state){
                 switch(menu->selected_option){
                     case MB_LS_PLAY:
                     new_level_select_game(game_state, menu->shown_level, false);
-                    c_close_menu();
+                    close_menu(game_state);
                     break;
                     case MB_LS_PLAY_PLUS:
                     new_level_select_game(game_state, menu->shown_level, true);
-                    c_close_menu();
+                    close_menu(game_state);
                     break;
                 }
                 return;
@@ -350,12 +349,12 @@ void draw_menu(GameState *game_state){
     u32 vert_num = 0;
     const u32 max_vert_num = 1000;
     
-    Vertex_PTCa *o_verts = (Vertex_PTCa *)temp_alloc(max_vert_num*sizeof(Vertex_PTCa));
+    Vertex_PTCa *o_verts = (Vertex_PTCa *)talloc(max_vert_num*sizeof(Vertex_PTCa));
     Vertex_PTCa *verts = o_verts;
     
     float left_y;
     if(menu->screen == MS_MAIN){
-        verts += render_text(0.42f, 0.9f, -0.9f, FONT_QUALITY_64, "game\nof lag\n", verts, 0.13f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
+        verts += render_text(0.42f, 0.9f, -0.9f, FONT_QUALITY_64, "game\nof lag\n", (mt_Vertex_PTCa *)verts, 0.13f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
         left_y = 0.6f;
     }else{
         left_y = 0.855f;
@@ -387,14 +386,16 @@ void draw_menu(GameState *game_state){
             //vert_num += text_vert_num(time_text_string);
             
             left_y -= 0.02f;
-            verts += render_text_monospace(0.42f, left_y, -0.9f, FONT_QUALITY_64, time_chars, verts, 0.05f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
-            verts += render_text(0.18f, left_y, -0.9f, FONT_QUALITY_64, time_text_chars, verts, 0.05f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
+            verts += render_text(0.42f, left_y, -0.9f, FONT_QUALITY_64, time_chars, (mt_Vertex_PTCa *)verts, 0.05f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT|TEXT_MONOSPACE);
+            verts += render_text(0.18f, left_y, -0.9f, FONT_QUALITY_64, time_text_chars, (mt_Vertex_PTCa *)verts, 0.05f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
         } break;
         case MS_SETTINGS: {
-            verts += render_text(0.42f, left_y, -0.9f, FONT_QUALITY_64, "settings\n", verts, 0.07f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
+            verts += render_text(0.42f, left_y, -0.9f, FONT_QUALITY_64, "settings\n", (mt_Vertex_PTCa *)verts, 0.07f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
         } break;
         case MS_LEVEL_SELECT:
         right_y = level_select_miniscreen_bottom;
+        break;
+        case MS_SURE_NEW_GAME:
         break;
     }
     
@@ -402,12 +403,12 @@ void draw_menu(GameState *game_state){
     
 #define ADD_MENU_TEXT(text) \
     { \
-        verts += render_text(0.47f, right_y, -0.9f, FONT_QUALITY_64, text, verts, 0.07f, NULL, NULL, text_color, TEXT_ALIGN_TOP); \
+        verts += render_text(0.47f, right_y, -0.9f, FONT_QUALITY_64, text, (mt_Vertex_PTCa *)verts, 0.07f, NULL, NULL, text_color, TEXT_ALIGN_TOP); \
         right_y -= 0.06f; \
     }
 #define ADD_MENU_OPTION(text) \
     { \
-        verts += render_text(0.47f, right_y, -0.9f, FONT_QUALITY_64, text, verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_TOP); \
+        verts += render_text(0.47f, right_y, -0.9f, FONT_QUALITY_64, text, (mt_Vertex_PTCa *)verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_TOP); \
         option_num++; \
         right_y -= menu_option_height; \
     }
@@ -446,11 +447,11 @@ void draw_menu(GameState *game_state){
             const float y = 0.5f*(level_select_miniscreen_top + level_select_miniscreen_bottom) - 0.035f;
             
             if(menu->shown_level < game_state->stats.unlocked_levels){
-                verts += render_text(1.f-level_select_miniscreen_left, y, -0.9f, FONT_QUALITY_64, ">", verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_LEFT);
+                verts += render_text(1.f-level_select_miniscreen_left, y, -0.9f, FONT_QUALITY_64, ">", (mt_Vertex_PTCa *)verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_LEFT);
             }
             option_num++;
             if(menu->shown_level > 1){
-                verts += render_text(level_select_miniscreen_left-0.04f, y, -0.9f, FONT_QUALITY_64, "<", verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_RIGHT);
+                verts += render_text(level_select_miniscreen_left-0.04f, y, -0.9f, FONT_QUALITY_64, "<", (mt_Vertex_PTCa *)verts, 0.07f, NULL, NULL, option_num == selected_option ? selected_text_color : text_color, TEXT_ALIGN_RIGHT);
             }
             option_num++;
         } break;
@@ -471,7 +472,7 @@ void draw_menu(GameState *game_state){
     }
     
     gl->text_buffer.count = (u32)(verts-o_verts);
-    set_buffer_data_static(gl->text_buffer.buffer, o_verts, gl->text_buffer.count);
+    ggtgl_set_buffer_data(gl->text_buffer.buffer, o_verts, gl->text_buffer.count, GL_DYNAMIC_DRAW);
     
     end_temp_alloc();
     
@@ -490,7 +491,7 @@ void draw_menu(GameState *game_state){
         
         glBindVertexArray(gl->text_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->text_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     if(game_state->menu_info.screen == MS_LEVEL_SELECT){
@@ -533,8 +534,8 @@ void draw_menu(GameState *game_state){
             {Vec3(+1.f, +1.f, -1.f), c},
         };
         
-        gl->fade_buffer.count = ArrayCount(o_vertices);
-        set_buffer_data_dynamic(gl->fade_buffer.buffer, o_vertices, gl->fade_buffer.count);
+        gl->fade_buffer.count = ArraySize(o_vertices);
+        ggtgl_set_buffer_data(gl->fade_buffer.buffer, o_vertices, gl->fade_buffer.count, GL_DYNAMIC_DRAW);
         
         Mat4 id = mat4_identity;
         
@@ -542,6 +543,6 @@ void draw_menu(GameState *game_state){
         glUniformMatrix4fv(gl->pca_program.matrix, 1, GL_FALSE, &id.values[0][0]);
         glBindVertexArray(gl->fade_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->fade_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
 }

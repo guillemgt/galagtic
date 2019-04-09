@@ -14,7 +14,7 @@ set CommonLinkerFlags= -STACK:0x100000,0x100000 -incremental:no -opt:ref user32.
 
 mkdir lag-windows\build
 pushd lag-windows\build
-cl ..\..\code\main.cpp -I"../../../Common Things/SDL/include" -I"../../../Common Things/glew/include" /Felag.exe %CommonCompilerFlags% /link /LIBPATH:"../../../Common Things/SDL/lib/x64" /LIBPATH:"../../../Common Things/glew/lib/x64" /SUBSYSTEM:CONSOLE %CommonLinkerFlags%
+cl ..\..\code\main.cpp /Felag.exe %CommonCompilerFlags% /link /SUBSYSTEM:WINDOWS %CommonLinkerFlags%
 
 mt.exe -manifest ../lag.exe.manifest -outputresource:lag.exe
 popd

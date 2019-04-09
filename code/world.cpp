@@ -1,4 +1,5 @@
-#include "basecode/os.hpp"
+#include "include/ggt_math.h"
+#include "include/misc_tools.hpp"
 
 #include "world.hpp"
 #include "render.hpp"
@@ -109,8 +110,8 @@ void load_world(GameState *game_state){
         float angle = 2.f*M_PI*(float)rand()/RAND_MAX;
         for(int j=0; j<3; j++){
             float r = 0.15f+0.35f*(float)rand()/RAND_MAX;
-            float c = cos(angle);
-            float s = sin(angle);
+            float c = cosf(angle);
+            float s = sinf(angle);
             eri->triangle_positions[i][j] = Vec3(r*c, r*s, -0.1f*(float)rand()/RAND_MAX);
             eri->triangle_periods[i][j] = 0.35f*sqrtf(r);
             angle += 2.f*M_PI/3.f;
@@ -119,7 +120,7 @@ void load_world(GameState *game_state){
 }
 
 void load_level(GameState *game_state, int num){
-    if(num < 0 || num >= ArrayCount(all_levels))
+    if(num < 0 || num >= ArraySize(all_levels))
         return;
     
     if(num > 0 && game_state->time_started_counting == INFINITY)
@@ -199,7 +200,7 @@ void load_level(GameState *game_state, int num){
 
 
 float some_rand(float x, float y){
-    return 1.f+0.5f*(sin(5.f*x)+cos(8.f*y));
+    return 1.f+0.5f*(sinf(5.f*x)+cosf(8.f*y));
 }
 
 void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer){
@@ -228,7 +229,7 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer){
         
         
         start_temp_alloc();
-        Vertex_PCa *o_vertices = (Vertex_PCa *)temp_alloc(vertex_count*sizeof(Vertex_PCa));
+        Vertex_PCa *o_vertices = (Vertex_PCa *)talloc(vertex_count*sizeof(Vertex_PCa));
         Vertex_PCa *vertices = o_vertices;
         
         {
@@ -565,7 +566,7 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer){
         
         buffer->count = (u32)(vertices-o_vertices);
         assert(buffer->count <= vertex_count);
-        set_buffer_data_static(buffer->buffer, o_vertices, buffer->count);
+        ggtgl_set_buffer_data(buffer->buffer, o_vertices, buffer->count, GL_STATIC_DRAW);
         
         end_temp_alloc();
     }
@@ -612,7 +613,7 @@ void load_changing_level_into_buffer(Level *level, BufferAndCount *buffer){
     }
     
     start_temp_alloc();
-    Vertex_PCa *o_vertices = (Vertex_PCa *)temp_alloc(vertex_count*sizeof(Vertex_PCa));
+    Vertex_PCa *o_vertices = (Vertex_PCa *)talloc(vertex_count*sizeof(Vertex_PCa));
     Vertex_PCa *vertices = o_vertices;
     
     float fx = 0.f;
@@ -686,7 +687,7 @@ void load_changing_level_into_buffer(Level *level, BufferAndCount *buffer){
     
     buffer->count = (u32)(vertices-o_vertices);
     assert(buffer->count <= vertex_count);
-    set_buffer_data_static(buffer->buffer, o_vertices, buffer->count);
+    ggtgl_set_buffer_data(buffer->buffer, o_vertices, buffer->count, GL_STATIC_DRAW);
     
     end_temp_alloc();
 }
@@ -703,7 +704,7 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
         Vec2 player_r = game_state->player_snapshots[game_state->last_rendered_snapshot].r;
         int vertex_count = 3*triangles_per_enemy*(enemies_snapshot.size) + 6*platforms_snapshot.size;
         
-        Vertex_PCa *o_vertices = (Vertex_PCa *)temp_alloc(vertex_count*sizeof(Vertex_PCa));
+        Vertex_PCa *o_vertices = (Vertex_PCa *)talloc(vertex_count*sizeof(Vertex_PCa));
         Vertex_PCa *vertices = o_vertices;
         
         LaggedLevel *level = &game_state->lagged_level;
@@ -715,7 +716,7 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                 for(int i=0; i<triangles_per_enemy; i++){
                     for(int j=0; j<3; j++){
                         float t = game_state->time/triangle_periods[i][j];
-                        float s = cos(t);
+                        float s = cosf(t);
                         *(vertices++) = {Vec3(p.x+s*triangle_positions[i][j].x, p.y+s*triangle_positions[i][j].y, 0.01f), color};
                     }
                 }
@@ -871,7 +872,7 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
         }
         
         buffer->count = (u32)(vertices-o_vertices);
-        set_buffer_data_dynamic(buffer->buffer, o_vertices, buffer->count);
+        ggtgl_set_buffer_data(buffer->buffer, o_vertices, buffer->count, GL_DYNAMIC_DRAW);
         end_temp_alloc();
     }
 }

@@ -1,8 +1,7 @@
-#include "basecode/os.hpp"
-
+#include "include/misc_tools.hpp"
 #include "sound.hpp"
 
-#if OS != OS_IOS
+#if OS != OS_IOS && 0
 
 const float global_volume = 0.2f*MIX_MAX_VOLUME;
 

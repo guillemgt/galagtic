@@ -1,7 +1,6 @@
 #ifndef menu_hpp
 #define menu_hpp
 
-#include "basecode/window.hpp"
 #include "render.hpp"
 
 typedef enum {

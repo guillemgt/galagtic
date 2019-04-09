@@ -1,5 +1,3 @@
-#include "basecode/os.hpp"
-
 #include "player.hpp"
 #include "render.hpp"
 #include "world.hpp"
@@ -32,7 +30,7 @@ const Vec2 enemies_box_size = Vec2(0.2f, 0.2f);
 extern f32 TIME_STEP;
 
 inline float sfloor(float x){ // Strict floor
-    float t = floor(x);
+    float t = floorf(x);
     if(t == x)
         return t-1.f;
     else
@@ -808,7 +806,8 @@ void process_messages(GameState *game_state){
                 assert(particles.size <= MAX_PARTICLES);
                 for(int px=-6; px<6; px++){
                     for(int py=-16; py<16; py++){
-                        Vec2 speed = 0.1f*v + (1.f + 6.f*rand()/RAND_MAX)*(Vec2)Angle(2.f*M_PI*rand()/RAND_MAX);
+                        float angle = 2.f*M_PI*rand()/RAND_MAX;
+                        Vec2 speed = 0.1f*v + (1.f + 6.f*rand()/RAND_MAX)*Vec2(cosf(angle), sinf(angle));
                         particles[s++] = {Vec2(fx+px/30.f, fy+py/30.f), speed, {60, 60, 60, 255}};
                     }
                 }
@@ -835,7 +834,8 @@ void process_messages(GameState *game_state){
                 for(int px=-6; px<6; px++){
                     for(int py=-6; py<6; py++){
                         int r = rand();
-                        Vec2 speed = (1.f + 7.f*r/RAND_MAX)*(Vec2)Angle(2.f*M_PI*rand()/RAND_MAX);
+                        float angle = 2.f*M_PI*rand()/RAND_MAX;
+                        Vec2 speed = (1.f + 7.f*r/RAND_MAX)*Vec2(cosf(angle), sinf(angle));
                         particles[s++] = {Vec2(fx+px/20.f, fy+py/20.f), speed, triangle_colors[r&7]};
                     }
                 }
@@ -964,7 +964,7 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
     
     if(!game_state->completion_snapshots[game_state->last_rendered_snapshot]){
         r = game_state->lagged_level.key_r;
-        r.y += 0.1f*sin(game_state->time);
+        r.y += 0.1f*sinf(game_state->time);
         current_frame_x = 0;
         current_frame_y = 4;
         t01 = Vec2(current_frame_x*outer_picture_size+picture_margin, texture_size-(current_frame_y*outer_picture_size+picture_margin))/texture_size;
@@ -981,7 +981,7 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
     }
     
     buffer->count = (u32)(vertices-o_vertices);
-    set_buffer_data_dynamic(buffer->buffer, o_vertices, buffer->count);
+    ggtgl_set_buffer_data(buffer->buffer, o_vertices, buffer->count, GL_DYNAMIC_DRAW);
 }
 
 void load_particles_into_buffer(GameState *game_state, BufferAndCount *buffer){
@@ -993,7 +993,7 @@ void load_particles_into_buffer(GameState *game_state, BufferAndCount *buffer){
     }
     
     start_temp_alloc();
-    Vertex_PCa *o_vertices = (Vertex_PCa *)temp_alloc(vertex_count*sizeof(Vertex_PCa));
+    Vertex_PCa *o_vertices = (Vertex_PCa *)talloc(vertex_count*sizeof(Vertex_PCa));
     Vertex_PCa *vertices = o_vertices;
     
     for(uint i=0; i<particles.size; i++){
@@ -1014,6 +1014,6 @@ void load_particles_into_buffer(GameState *game_state, BufferAndCount *buffer){
     u32 buffer_count = (u32)(vertices-o_vertices);
     buffer->count = buffer_count;
     if(buffer_count > 0)
-        set_buffer_data_dynamic(buffer->buffer, o_vertices, buffer_count);
+        ggtgl_set_buffer_data(buffer->buffer, o_vertices, buffer->count, GL_DYNAMIC_DRAW);
     end_temp_alloc();
 }

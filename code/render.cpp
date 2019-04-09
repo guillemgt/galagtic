@@ -1,6 +1,3 @@
-#include "basecode/basecode.hpp"
-#include "basecode/os.hpp"
-
 #include "render.hpp"
 #include "player.hpp"
 #include "main.hpp"
@@ -18,39 +15,97 @@ ModelInfo models_info[10];
 StaticModel static_models[10];*/
 
 void init_openGL(GameState *game_state){
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#if !OPENGL_ES
+    glEnable(GL_ALPHA_TEST);
+    glAlphaFunc(GL_GREATER, 0.02f);
+    glEnable(GL_POLYGON_SMOOTH);
+    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+#endif
+    
+    glEnable(GL_SCISSOR_TEST);
+    
+    
+    
     GLObjects *gl = &game_state->gl_objects;
     // We read the wall shaders
-    const char wall_shader[] =
-#include "Shaders/pca_shader.glsl"
+    const char pca_shader_v[] =
+#if !OPENGL_ES
+#include "Shaders/pca_shader_v.glsl"
+#else
+#include "Shaders/pca_shader_v_es.glsl"
+#endif
         ;
-    gl->pca_program.id = load_shaders_by_text(wall_shader);
+    const char pca_shader_f[] =
+#if !OPENGL_ES
+#include "Shaders/pca_shader_f.glsl"
+#else
+#include "Shaders/pca_shader_f_es.glsl"
+#endif
+        ;
+    gl->pca_program.id = ggtgl_load_shaders_by_text(pca_shader_v, pca_shader_f);
     gl->pca_program.position = glGetAttribLocation (gl->pca_program.id, "a_position");
     gl->pca_program.color    = glGetAttribLocation (gl->pca_program.id, "a_color");
     gl->pca_program.matrix   = glGetUniformLocation(gl->pca_program.id, "u_matrix");
     
-    const char pt_shader[] =
-#include "Shaders/pt_shader.glsl"
+    const char pt_shader_v[] =
+#if !OPENGL_ES
+#include "Shaders/pt_shader_v.glsl"
+#else
+#include "Shaders/pt_shader_v_es.glsl"
+#endif
         ;
-    gl->pt_program.id = load_shaders_by_text(pt_shader);
+    const char pt_shader_f[] =
+#if !OPENGL_ES
+#include "Shaders/pt_shader_f.glsl"
+#else
+#include "Shaders/pt_shader_f_es.glsl"
+#endif
+        ;
+    gl->pt_program.id = ggtgl_load_shaders_by_text(pt_shader_v, pt_shader_f);
     gl->pt_program.position   = glGetAttribLocation (gl->pt_program.id, "a_position");
     gl->pt_program.tex_coords = glGetAttribLocation (gl->pt_program.id, "a_tex_coords");
     gl->pt_program.matrix     = glGetUniformLocation(gl->pt_program.id, "u_matrix");
     gl->pt_program.sampler    = glGetUniformLocation(gl->pt_program.id, "u_sampler");
     gl->pt_program.color_multiplier = glGetUniformLocation(gl->pt_program.id, "u_color_multiplier");
     
-    const char pta_shader[] =
-#include "Shaders/pta_shader.glsl"
+    const char pta_shader_v[] =
+#if !OPENGL_ES
+#include "Shaders/pta_shader_v.glsl"
+#else
+#include "Shaders/pta_shader_v_es.glsl"
+#endif
         ;
-    gl->pta_program.id = load_shaders_by_text(pta_shader);
+    const char pta_shader_f[] =
+#if !OPENGL_ES
+#include "Shaders/pta_shader_f.glsl"
+#else
+#include "Shaders/pta_shader_f_es.glsl"
+#endif
+        ;
+    gl->pta_program.id = ggtgl_load_shaders_by_text(pta_shader_v, pta_shader_f);
     gl->pta_program.position   = glGetAttribLocation (gl->pta_program.id, "a_position");
     gl->pta_program.tex_coords = glGetAttribLocation (gl->pta_program.id, "a_tex_coords");
     gl->pta_program.matrix     = glGetUniformLocation(gl->pta_program.id, "u_matrix");
     gl->pta_program.sampler    = glGetUniformLocation(gl->pta_program.id, "u_sampler");
     
-    const char ptca_shader[] =
-#include "Shaders/ptca_shader.glsl"
+    const char ptca_shader_v[] =
+#if !OPENGL_ES
+#include "Shaders/ptca_shader_v.glsl"
+#else
+#include "Shaders/ptca_shader_v_es.glsl"
+#endif
         ;
-    gl->ptca_program.id = load_shaders_by_text(ptca_shader);
+    const char ptca_shader_f[] =
+#if !OPENGL_ES
+#include "Shaders/ptca_shader_f.glsl"
+#else
+#include "Shaders/ptca_shader_f_es.glsl"
+#endif
+        ;
+    gl->ptca_program.id = ggtgl_load_shaders_by_text(ptca_shader_v, ptca_shader_f);
     gl->ptca_program.position   = glGetAttribLocation (gl->ptca_program.id, "a_position");
     gl->ptca_program.tex_coords = glGetAttribLocation (gl->ptca_program.id, "a_tex_coords");
     gl->ptca_program.color      = glGetAttribLocation (gl->ptca_program.id, "a_color");
@@ -73,7 +128,7 @@ void init_openGL(GameState *game_state){
     glGenBuffers(1, &gl->buttons_buffer.buffer);
 #endif
     
-    check_openGL_error();
+    ggtgl_check_error();
     // We initialize the vertex array objects
     glGenVertexArrays(1, &gl->level_vao);
     glBindVertexArray(gl->level_vao);
@@ -82,7 +137,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->level_buffer.buffer);
     glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
     glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
     for(int i=0; i<2; i++){
         glGenVertexArrays(1, &gl->level_changing_vaos[i]);
@@ -92,7 +147,7 @@ void init_openGL(GameState *game_state){
         glBindBuffer(GL_ARRAY_BUFFER, gl->level_changing_buffers[i].buffer);
         glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
         glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     glGenVertexArrays(1, &gl->goal_vao);
@@ -102,7 +157,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->goal_buffer.buffer);
     glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
     glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
     glGenVertexArrays(1, &gl->loading_vao);
     glBindVertexArray(gl->loading_vao);
@@ -111,7 +166,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->loading_buffer.buffer);
     glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
     glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
     glGenVertexArrays(1, &gl->player_vao);
     glBindVertexArray(gl->player_vao);
@@ -120,7 +175,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->player_buffer.buffer);
     glVertexAttribPointer(gl->pt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)0);
     glVertexAttribPointer(gl->pt_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
     glGenVertexArrays(1, &gl->particle_vao);
     glBindVertexArray(gl->particle_vao);
@@ -129,7 +184,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->particle_buffer.buffer);
     glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
     glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
     glGenVertexArrays(1, &gl->fade_vao);
     glBindVertexArray(gl->fade_vao);
@@ -138,7 +193,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->fade_buffer.buffer);
     glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PC), (void *)0);
     glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PC), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
     
     glGenVertexArrays(1, &gl->text_vao);
@@ -150,7 +205,7 @@ void init_openGL(GameState *game_state){
     glVertexAttribPointer(gl->ptca_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PTCa), (void *)0);
     glVertexAttribPointer(gl->ptca_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PTCa), (void *)offsetof(Vertex_PTCa, t));
     glVertexAttribPointer(gl->ptca_program.color,      4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex_PTCa), (void *)offsetof(Vertex_PTCa, c));
-    check_openGL_error();
+    ggtgl_check_error();
     
     glGenVertexArrays(1, &gl->ui_textures_vao);
     glBindVertexArray(gl->ui_textures_vao);
@@ -159,7 +214,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->ui_textures_buffer.buffer);
     glVertexAttribPointer(gl->pt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)0);
     glVertexAttribPointer(gl->pt_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
 #if OS == OS_IOS
     glGenVertexArrays(1, &gl->buttons_vao);
@@ -169,7 +224,7 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->buttons_buffer.buffer);
     glVertexAttribPointer(gl->pca_program.position, 3, GL_FLOAT,         GL_FALSE, sizeof(Vertex_PCa), (void *)0);
     glVertexAttribPointer(gl->pca_program.color,    4, GL_UNSIGNED_BYTE, GL_TRUE,  sizeof(Vertex_PCa), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
 #endif
     
     glGenVertexArrays(1, &gl->planet_vao);
@@ -179,31 +234,31 @@ void init_openGL(GameState *game_state){
     glBindBuffer(GL_ARRAY_BUFFER, gl->planet_buffer.buffer);
     glVertexAttribPointer(gl->pt_program.position,   3, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)0);
     glVertexAttribPointer(gl->pt_program.tex_coords, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex_PT), (void *)(sizeof(Vec3)));
-    check_openGL_error();
+    ggtgl_check_error();
     
     glBindVertexArray(0);
-    check_openGL_error();
+    ggtgl_check_error();
     
     glActiveTexture(GL_TEXTURE0);
     GLuint texture;
     char path[MAX_PATH_LENGTH];
-    get_game_file_path("Textures/textures.png", path);
-    load_texture(&texture, path);
+    ggtp_program_file_path("Textures/textures.png", path);
+    ggtgl_load_texture(&texture, path);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    check_openGL_error();
+    ggtgl_check_error();
     
     glActiveTexture(GL_TEXTURE1);
     GLuint texture2;
-    get_game_file_path("Textures/planet.png", path);
-    load_texture(&texture2, path);
+    ggtp_program_file_path("Textures/planet.png", path);
+    ggtgl_load_texture(&texture2, path);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    check_openGL_error();
+    ggtgl_check_error();
     
     change_window_size(game_state, (Vec2)window_size);
     
     //load_level_into_buffer(game_state, &gl->level_buffer, &gl->noise_buffer);
     
-    check_openGL_error();
+    ggtgl_check_error();
     
     /*
     // Init catalogs
@@ -248,8 +303,8 @@ void print_render_time(){
 
 #define DONT_CHECK_ERRORS 0
 #if DONT_CHECK_ERRORS
-#undef check_openGL_error
-#define check_openGL_error()
+#undef ggtgl_check_error
+#define ggtgl_check_error()
 #endif
 
 void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_and_player){
@@ -277,7 +332,7 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
     float scale_to_match_x = 2.f/gl->shown_level_size.x;
     float scale_to_match_y = 2.f/gl->shown_level_size.y * gl->actual_screen_ratio;
     float scale_to_match_y_with_ui = 2.f/(gl->shown_level_size.y-1.f) * (gl->screen_size.y / gl->actual_screen_size.x);
-    float min_scale = min(scale_to_match_x, min(scale_to_match_y, scale_to_match_y_with_ui));
+    float min_scale = fminf(scale_to_match_x, fminf(scale_to_match_y, scale_to_match_y_with_ui));
     
     Mat4 final_matrix = get_scale_matrix(min_scale, min_scale / gl->actual_screen_ratio, 1.f) * get_translation_matrix(Vec3(gl->screen_translate.x, gl->screen_translate.y, 0.f));
     
@@ -302,21 +357,21 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
         glUniform1i(gl->pt_program.sampler, 1);
         glBindVertexArray(gl->planet_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->planet_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     if(draw_ui_and_player && gl->player_buffer.count > 0){
         glUniform1i(gl->pt_program.sampler, 0);
         glBindVertexArray(gl->player_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->player_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     if(draw_ui_and_player && gl->ui_textures_buffer.count > 0){
         glUniformMatrix4fv(gl->pt_program.matrix, 1, GL_FALSE, &ui_matrix.values[0][0]);
         glBindVertexArray(gl->ui_textures_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->ui_textures_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     glUseProgram(gl->pca_program.id);
@@ -325,23 +380,23 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
     if(gl->level_buffer.count > 0){
         glBindVertexArray(gl->level_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->level_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     if(gl->level_changing_buffers[gl->drawn_level_state].count > 0){
         glBindVertexArray(gl->level_changing_vaos[gl->drawn_level_state]);
         glDrawArrays(GL_TRIANGLES, 0, gl->level_changing_buffers[gl->drawn_level_state].count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     if(gl->goal_buffer.count > 0){
         glBindVertexArray(gl->goal_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->goal_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     if(gl->particle_buffer.count > 0){
         glBindVertexArray(gl->particle_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->particle_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     {
@@ -375,22 +430,22 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
         vert_num += text_vert_num(lives_sc);
         
         
-        Vertex_PTCa *o_verts = (Vertex_PTCa *)temp_alloc(vert_num*sizeof(Vertex_PTCa));
+        Vertex_PTCa *o_verts = (Vertex_PTCa *)talloc(vert_num*sizeof(Vertex_PTCa));
         Vertex_PTCa *verts = o_verts;
         
         float spb = screen_portion_of_ui_bottom * gl->actual_screen_ratio;
         float spt = screen_portion_of_ui_top    * gl->actual_screen_ratio;
         
         float time_width;
-        Vertex_PTCa *verts_time = verts + render_text_monospace(1.f, gl->actual_screen_ratio+0.2f*spt, -0.7f, FONT_QUALITY_64, time_sc, verts, spt, &time_width, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
+        Vertex_PTCa *verts_time = verts + render_text(1.f, gl->actual_screen_ratio+0.2f*spt, -0.7f, FONT_QUALITY_64, time_sc, (mt_Vertex_PTCa *)verts, spt, &time_width, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP | TEXT_MONOSPACE);
         while(verts < verts_time){
             verts->p.x -= time_width;
             verts++;
         }
-        verts += render_text_monospace(0.f, gl->actual_screen_ratio+0.2f*spt, -0.7f, FONT_QUALITY_64, lives_sc, verts, spt, NULL, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP);
+        verts += render_text(0.f, gl->actual_screen_ratio+0.2f*spt, -0.7f, FONT_QUALITY_64, lives_sc, (mt_Vertex_PTCa *)verts, spt, NULL, NULL, {255, 255, 255, 255}, TEXT_ALIGN_TOP | TEXT_MONOSPACE);
         
         gl->text_buffer.count = vert_num;
-        set_buffer_data_static(gl->text_buffer.buffer, o_verts, gl->text_buffer.count);
+        ggtgl_set_buffer_data(gl->text_buffer.buffer, o_verts, gl->text_buffer.count, GL_STATIC_DRAW);
         
         end_temp_alloc();
     }
@@ -402,7 +457,7 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
         
         glBindVertexArray(gl->text_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->text_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     float alpha = game_state->menu_info.fade_alpha;
@@ -418,8 +473,8 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
             {Vec3(+1.f, +1.f, -1.f), c},
         };
         
-        gl->fade_buffer.count = ArrayCount(o_vertices);
-        set_buffer_data_dynamic(gl->fade_buffer.buffer, o_vertices, gl->fade_buffer.count);
+        gl->fade_buffer.count = ArraySize(o_vertices);
+        ggtgl_set_buffer_data(gl->fade_buffer.buffer, o_vertices, gl->fade_buffer.count, GL_DYNAMIC_DRAW);
         
         Mat4 id = mat4_identity;
         
@@ -427,7 +482,7 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
         glUniformMatrix4fv(gl->pca_program.matrix, 1, GL_FALSE, &id.values[0][0]);
         glBindVertexArray(gl->fade_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->fade_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
     
     
@@ -493,7 +548,7 @@ void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_an
         glUniformMatrix4fv(gl->pca_program.matrix, 1, GL_FALSE, &ui_matrix.values[0][0]);
         glBindVertexArray(gl->buttons_vao);
         glDrawArrays(GL_TRIANGLES, 0, gl->buttons_buffer.count);
-        check_openGL_error();
+        ggtgl_check_error();
     }
 #endif
 }
@@ -539,7 +594,7 @@ void change_window_size(GameState *game_state, Vec2 size){
             {Vec3(xmargin+pun, ymargin+0.f, -0.9f), t10},
             {Vec3(xmargin+pun, ymargin+pun, -0.9f), t11},
         };
-        gl->ui_textures_buffer.count = ArrayCount(o_vertices);
-        set_buffer_data_dynamic(gl->ui_textures_buffer.buffer, o_vertices, ArrayCount(o_vertices));
+        gl->ui_textures_buffer.count = ArraySize(o_vertices);
+        ggtgl_set_buffer_data(gl->ui_textures_buffer.buffer, o_vertices, ArraySize(o_vertices), GL_DYNAMIC_DRAW);
     }
 }

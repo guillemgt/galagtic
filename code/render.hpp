@@ -1,8 +1,9 @@
 #ifndef render_hpp
 #define render_hpp
 
-#include "basecode/basecode.hpp"
-#include "basecode/opengl.hpp"
+#include "basecode.hpp"
+#include "include/ggt_gl_utils.h"
+#include "include/misc_tools.hpp"
 
 extern Vec2 level_size;
 const float screen_portion_of_ui_bottom = 0.f;
@@ -13,6 +14,37 @@ const float fade_speed = 2.f;
 struct BufferAndCount {
     GLuint buffer;
     u32 count;
+};
+
+
+struct Vertex_PC {
+    Vec3 p;
+    RgbColor c;
+};
+struct Vertex_PCa {
+    Vec3 p;
+    RgbaColor c;
+};
+struct Vertex_PTCa {
+    Vec3 p;
+    Vec2 t;
+    RgbaColor c;
+};
+struct Vertex_PT {
+    Vec3 p;
+    Vec2 t;
+};
+struct Vertex_PN {
+    Vec3 p;
+    Vec3 n;
+};
+struct Vertex_PTa {
+    Vec3 p;
+    Vec3 t;
+};
+struct Vertex_PNC {
+    Vec3 p, n;
+    RgbColor c;
 };
 
 struct GLObjects {
