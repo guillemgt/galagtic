@@ -143,38 +143,38 @@ int menu_keydown(GameState *game_state, char key){
         return 1;
     
     switch(key){
-        case GGTPK_UP:
+        case GGTP_KEY_UP:
         do{
             menu->selected_option = (menu->selected_option+menu_total_options[menu->screen]-1) % menu_total_options[menu->screen];
         }while(menu->screen == MS_MAIN && menu->disabled_options[menu->selected_option]);
         break;
         
-        case GGTPK_DOWN:
+        case GGTP_KEY_DOWN:
         do{
             menu->selected_option = (menu->selected_option+1) % menu_total_options[menu->screen];
         }while(menu->screen == MS_MAIN && menu->disabled_options[menu->selected_option]);
         break;
         
-        case GGTPK_RIGHT:
+        case GGTP_KEY_RIGHT:
         if(menu->screen == MS_LEVEL_SELECT && menu->shown_level < game_state->stats.unlocked_levels){
             menu->shown_level++;
             menu_load_level(game_state);
         }
         break;
         
-        case GGTPK_LEFT:
+        case GGTP_KEY_LEFT:
         if(menu->screen == MS_LEVEL_SELECT && menu->shown_level > 1){
             menu->shown_level--;
             menu_load_level(game_state);
         }
         break;
         
-        case GGTPK_SPACE:
-        case GGTPK_RETURN:
+        case GGTP_KEY_SPACE:
+        case GGTP_KEY_RETURN:
         return select_menu_option(game_state);
         break;
         
-        case GGTPK_ESC:
+        case GGTP_KEY_ESC:
         if(menu->screen == MS_INGAME)
             close_menu(game_state);
         break;

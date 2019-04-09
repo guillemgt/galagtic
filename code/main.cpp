@@ -216,18 +216,18 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
     
     for(uint i=0; i<events.size; i++){
         switch(events.data[i].type){
-            case GGTPE_RESIZE: {
+            case GGTP_EVENT_RESIZE: {
 				ggt_vec2i v = events.data[i].info.size;
 				window_size.x = v.x;
 				window_size.y = v.y;
                 change_window_size(game_state, Vec2((float)v.x, (float)v.y));
             } break;
-            case GGTPE_CLOSE: {
+            case GGTP_EVENT_CLOSE: {
                 return 0;
             } break;
-            case GGTPE_KEY_DOWN: {
+            case GGTP_EVENT_KEY_DOWN: {
                 if(game_state->game_mode == GAME_MODE_PLAY){
-					if(events.data[i].info.key == GGTPK_ESC){
+					if(events.data[i].info.key == GGTP_KEY_ESC){
                         if(game_state->is_in_real_game)
                             save_game_into_crt(game_state);
                         open_menu(game_state);
@@ -237,16 +237,16 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
                         return 0;
                 }
             } break;
-            case GGTPE_MOUSE_MOVE: {
+            case GGTP_EVENT_MOUSE_MOVE: {
                 if(game_state->game_mode == GAME_MODE_MENU){
 					ggt_vec2i v = events.data[i].info.mouse_movement.position;
 					if(menu_mousemove(game_state, Vec2((float)v.x, (float)v.y)))
-						ggt_platform_set_cursor(GGTP_CURSOR_POINTER);
+						ggtp_set_cursor(GGTP_CURSOR_POINTER);
 					else
-						ggt_platform_set_cursor(GGTP_CURSOR_ARROW);
+						ggtp_set_cursor(GGTP_CURSOR_ARROW);
                 }
             } break;
-            case GGTPE_MOUSE_LEFT_DOWN: {
+            case GGTP_EVENT_MOUSE_LEFT_DOWN: {
                 if(game_state->game_mode == GAME_MODE_MENU){
 					ggt_vec2i v = events.data[i].info.coords;
                     if(menu_mousemove(game_state, Vec2((float)v.x, (float)v.y)))
@@ -259,10 +259,10 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
     
     u8 current_keys = 0;
 #if DEVMODE
-    if(keys[GGTPK_SHIFT] && game_state->game_mode == GAME_MODE_PLAY){
+    if(keys[GGTP_KEY_SHIFT] && game_state->game_mode == GAME_MODE_PLAY){
         {
             static bool right_pressed = false, left_pressed = false;
-            if(keys[GGTPK_RIGHT]){
+            if(keys[GGTP_KEY_RIGHT]){
                 if(!right_pressed){
                     load_level(game_state, game_state->level.num+1);
                     game_state->draw_new_level_time = -1.f;
@@ -271,7 +271,7 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
             }else{
                 right_pressed = false;
             }
-            if(keys[GGTPK_LEFT]){
+            if(keys[GGTP_KEY_LEFT]){
                 if(!left_pressed){
                     load_level(game_state, game_state->level.num-1);
                     game_state->draw_new_level_time = -1.f;
@@ -283,11 +283,11 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
         }
     }else{
 #endif
-        if(keys[GGTPK_UP])    current_keys |= frame_key_up;
-        if(keys[GGTPK_RIGHT]) current_keys |= frame_key_right;
-        if(keys[GGTPK_DOWN])  current_keys |= frame_key_down;
-        if(keys[GGTPK_LEFT])  current_keys |= frame_key_left;
-        if(keys[GGTPK_SPACE]) current_keys |= frame_key_space;
+        if(keys[GGTP_KEY_UP])    current_keys |= frame_key_up;
+        if(keys[GGTP_KEY_RIGHT]) current_keys |= frame_key_right;
+        if(keys[GGTP_KEY_DOWN])  current_keys |= frame_key_down;
+        if(keys[GGTP_KEY_LEFT])  current_keys |= frame_key_left;
+        if(keys[GGTP_KEY_SPACE]) current_keys |= frame_key_space;
 #if DEVMODE
     }
 #endif
