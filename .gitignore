@@ -8,3 +8,4 @@ lag-wasm/before.sh
 */build/
 */.DS_Store
 */save
+*/stb_*

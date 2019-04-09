@@ -1,0 +1,1 @@
+If you want to compile this you should include here [stb_image.h](https://github.com/nothings/stb/blob/master/stb_image.h) and [stb_truetype.h](https://github.com/nothings/stb/blob/master/stb_truetype.h).
