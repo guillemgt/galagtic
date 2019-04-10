@@ -1,6 +1,7 @@
 #include <chrono>
 
-#define GGT_PLATFORM_PROGRAM_STATE GameState
+#define GGTP_PROGRAM_STATE GameState
+#define GGTP_USE_SDL
 #include "Include/ggt_platform.h"
 
 #include "Include/stb_image.h"
@@ -39,8 +40,8 @@ int ggtp_init(GameState *game_state){
     
     allocate_temporary_memory(KB(13990L));
     
-    if(ggtp_create_window(600, 600, "a laggy game"))
-        return 0;
+    if(ggtp_create_window(600, 600, "a laggy game") == GGT_FAILURE)
+        return GGT_FAILURE;
     
     global_game_state = game_state;
     
@@ -65,9 +66,8 @@ int ggtp_init(GameState *game_state){
     process_menu(game_state);
     menu->selected_option = 0;
     while(menu->disabled_options[menu->selected_option]) menu->selected_option++;
-    printf("%i\n", menu->selected_option);
     
-    return 1;
+    return GGT_SUCCESS;
 }
 
 void new_game(GameState *game_state, bool newer_game){
@@ -178,13 +178,6 @@ void complete_game(GameState *game_state){
 
 extern f32 TIME_STEP;
 
-#if OS == OS_WASM
-extern "C" {
-    extern void js_show_menu();
-    extern void js_hide_menu();
-}
-#endif
-
 #define MEASURE_TIME 1
 #define DEBUG_PAUSE 1
 
@@ -223,7 +216,7 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
                 change_window_size(game_state, Vec2((float)v.x, (float)v.y));
             } break;
             case GGTP_EVENT_CLOSE: {
-                return 0;
+                return GGT_FAILURE;
             } break;
             case GGTP_EVENT_KEY_DOWN: {
                 if(game_state->game_mode == GAME_MODE_PLAY){
@@ -234,7 +227,7 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
                     }
                 }else{
                     if(!menu_keydown(game_state, events.data[i].info.key))
-                        return 0;
+                        return GGT_FAILURE;
                 }
             } break;
             case GGTP_EVENT_MOUSE_MOVE: {
@@ -395,7 +388,7 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
     game_state->was_in_play_mode = was_in_play_mode; 
     
     
-    return 1;
+    return GGT_SUCCESS;
 }
 void ggtp_draw(GameState *game_state){
 #if MEASURE_TIME
