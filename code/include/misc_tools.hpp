@@ -2,6 +2,8 @@
 #define MISC_TOOLS_H
 
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 //
 // Finding the operating system

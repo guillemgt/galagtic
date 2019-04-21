@@ -19,6 +19,7 @@ const u16 BLOCK_HAS_TWO_LAYERS_SQUARE = 0x0800;
 const u16 BLOCK_IS_HARMFUL = BLOCK_IS_HARMFUL_CENTER | BLOCK_IS_HARMFUL_RIGHT | BLOCK_IS_HARMFUL_UP | BLOCK_IS_HARMFUL_LEFT | BLOCK_IS_HARMFUL_DOWN;
 
 const RgbaColor basic_color = {35, 35, 35, 255};
+const RgbaColor water_color = {230, 255, 255, 140};
 
 const int max_level_width  = 30;
 const int max_level_height = 25;

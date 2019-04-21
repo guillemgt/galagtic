@@ -2,13 +2,13 @@
 
 #define GGTP_PROGRAM_STATE GameState
 #define GGTP_USE_SDL
-#include "Include/ggt_platform.h"
+#include "include/ggt_platform.h"
 
-#include "Include/stb_image.h"
-#include "Include/stb_truetype.h"
-#include "Include/ggt_gl_utils.h"
-#include "Include/ggt_math.h"
-#include "Include/misc_tools.hpp"
+#include "include/stb_image.h"
+#include "include/stb_truetype.h"
+#include "include/ggt_gl_utils.h"
+#include "include/ggt_math.h"
+#include "include/misc_tools.hpp"
 
 #include "basecode.hpp"
 
@@ -25,7 +25,7 @@
 #include "world.cpp"
 #include "menu.cpp"
 
-#define LAGGY 1
+#define LAGGY 0
 const float lag_time = 0.8f;
 
 GameState *global_game_state;
@@ -251,7 +251,7 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
     }
     
     u8 current_keys = 0;
-#if DEVMODE
+#if DEBUG_BUILD
     if(keys[GGTP_KEY_SHIFT] && game_state->game_mode == GAME_MODE_PLAY){
         {
             static bool right_pressed = false, left_pressed = false;
@@ -281,7 +281,7 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
         if(keys[GGTP_KEY_DOWN])  current_keys |= frame_key_down;
         if(keys[GGTP_KEY_LEFT])  current_keys |= frame_key_left;
         if(keys[GGTP_KEY_SPACE]) current_keys |= frame_key_space;
-#if DEVMODE
+#if DEBUG_BUILD
     }
 #endif
     if(game_state->game_mode == GAME_MODE_PLAY){

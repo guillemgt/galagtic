@@ -354,7 +354,7 @@ void draw_menu(GameState *game_state){
     
     float left_y;
     if(menu->screen == MS_MAIN){
-        verts += render_text(0.42f, 0.9f, -0.9f, FONT_QUALITY_64, "game\nof lag\n", (mt_Vertex_PTCa *)verts, 0.13f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
+        verts += render_text(0.42f, 0.9f, -0.9f, FONT_QUALITY_64, "lagoon\nmoon\n", (mt_Vertex_PTCa *)verts, 0.13f, NULL, NULL, title_text_color, TEXT_ALIGN_TOP|TEXT_ALIGN_RIGHT);
         left_y = 0.6f;
     }else{
         left_y = 0.855f;

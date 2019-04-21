@@ -68,6 +68,7 @@ void load_world(GameState *game_state){
     block_info[' ']  = BLOCK_IS_TRANSPARENT;
     block_info['#']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS;
     
+    block_info[')']  = BLOCK_IS_TRANSPARENT;
     block_info['@']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS;
     block_info['F']  = BLOCK_IS_SOLID | BLOCK_STOPS_PLATFORMS | BLOCK_IS_TRANSPARENT | BLOCK_HAS_TWO_LAYERS;
     
@@ -146,7 +147,7 @@ void load_level(GameState *game_state, int num){
     
     level->width  = level_info->size.x;
     level->height = level_info->size.y;
-    printf("%i %i\n", level->width, level->height);
+    level->exit_side = level_info->exit_side;
     
     level->state = 0;
     
@@ -196,6 +197,13 @@ void load_level(GameState *game_state, int num){
     reset_player(level_info, player, level);
     
     player->r = level_info->start_first_time;
+    
+    if(num == 0){
+        for(int i=0; i<WATER_MAX_X*WATER_SUBDIVISIONS; i++){
+            lagged_level->water_height[i] = 1.8f;
+            lagged_level->water_speed[i]  = 0.f;
+        }
+    }
 }
 
 
@@ -214,7 +222,7 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer){
                 char c = layout[x][y];
                 if(block_info[c] & BLOCK_IS_TRANSPARENT)
                     vertex_count += 6;
-                if(c == '#' || c == '@')
+                if(c == '#' || c == '@' || c == ')')
                     vertex_count += 6;
                 else if(c == '/' || c == ']' || c == '7' || c == '1')
                     vertex_count += 18;
@@ -284,7 +292,7 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer){
                     } break;
                     case '@': {
                         i8 r = rand()%8;
-                        RgbaColor color = {(u8)(54-r), (u8)(54-r), (u8)(54-r), 255};
+                        RgbaColor color = {(u8)(255-r), (u8)(244-r), (u8)(224-r), 255};
                         const float disp = 0.05f;
                         float r0 = disp*((17*x+13*y)%23)/23.f;
                         float r1 = disp*((13*x+17*y)%23)/23.f;
@@ -295,6 +303,21 @@ void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer){
                             Vec3(fx+1.f+r1, fy+0.f-r3, 0.f),
                             Vec3(fx+0.f-r2, fy+1.f+r0, 0.f),
                             Vec3(fx+1.f+r3, fy+1.f+r2, 0.f),
+                        };
+                        *(vertices++) = {square[0], color};
+                        *(vertices++) = {square[1], color};
+                        *(vertices++) = {square[2], color};
+                        *(vertices++) = {square[2], color};
+                        *(vertices++) = {square[1], color};
+                        *(vertices++) = {square[3], color};
+                    } break;
+                    case ')': {
+                        RgbaColor color = water_color;
+                        Vec3 square[4] = {
+                            Vec3(fx+0.f, fy+0.f,  0.f),
+                            Vec3(fx+1.f, fy+0.f,  0.f),
+                            Vec3(fx+0.f, fy+0.8f, 0.f),
+                            Vec3(fx+1.f, fy+0.8f, 0.f),
                         };
                         *(vertices++) = {square[0], color};
                         *(vertices++) = {square[1], color};
@@ -693,6 +716,8 @@ void load_changing_level_into_buffer(Level *level, BufferAndCount *buffer){
 }
 
 void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
+    const float water_subdivision_distance = 1.f/WATER_SUBDIVISIONS;
+    
     Vec3 (*triangle_positions)[3] = &game_state->enemy_rendering_info.triangle_positions[0];
     float (*triangle_periods)[3] = &game_state->enemy_rendering_info.triangle_periods[0];
     {
@@ -702,7 +727,7 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
         auto &platforms_snapshot = game_state->platforms_snapshots[game_state->last_rendered_snapshot];
         u8 level_completed = game_state->completion_snapshots[game_state->last_rendered_snapshot];
         Vec2 player_r = game_state->player_snapshots[game_state->last_rendered_snapshot].r;
-        int vertex_count = 3*triangles_per_enemy*(enemies_snapshot.size) + 6*platforms_snapshot.size;
+        int vertex_count = 3*triangles_per_enemy*(enemies_snapshot.size) + 6*platforms_snapshot.size + 6*WATER_MAX_X*WATER_SUBDIVISIONS;
         
         Vertex_PCa *o_vertices = (Vertex_PCa *)talloc(vertex_count*sizeof(Vertex_PCa));
         Vertex_PCa *vertices = o_vertices;
@@ -847,7 +872,7 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
             if(do_sound)
                 play_sound(&game_state->sound, SOUND_SPIKES);
         }
-        {
+        { // Platforms
             RgbaColor color = {30, 30, 30, 255};
             for(uint k=0; k<platforms_snapshot.size; k++){
 #if DEVMODE
@@ -868,6 +893,55 @@ void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer){
                 *(vertices++) = {box[2], color};
                 *(vertices++) = {box[1], color};
                 *(vertices++) = {box[3], color};
+            }
+        }
+        if(game_state->level.num == 0){
+            const float water_equilibrium = 1.8f;
+            const float water_fluidity = 5.f;
+            const float water_antifluidity1 = 5.f;
+            const float water_antifluidity2 = 0.995f;
+            
+            float *water_height = level->water_height;
+            float *water_speed = level->water_speed;
+            
+            for(int k=0; k<5; k++){
+                for(int i=0; i<WATER_NODES; i++){
+                    if(i > 0){
+                        water_speed[i] += water_fluidity*TIME_STEP*(water_height[i-1] - water_height[i]);
+                    }
+                    if(i < WATER_NODES-1){
+                        water_speed[i] += water_fluidity*TIME_STEP*(water_height[i+1] - water_height[i]);
+                    }
+                    water_speed[i] += water_antifluidity1*TIME_STEP*(water_equilibrium - water_height[i]);
+                    
+                    water_speed[i] = water_antifluidity2*water_speed[i];
+                }
+                for(int i=0; i<WATER_NODES; i++){
+                    water_height[i] += TIME_STEP*water_speed[i];
+                }
+            }
+            static float t = 0.f;
+            t += TIME_STEP;
+            float x1 = 0.f;
+            float y1 = water_height[0] + 0.02f*(sin(4.f*x1 - 3.f*t)  + sin(5.4235f*x1 + 3.f*t));
+            for(int i=0; i<WATER_NODES-1; i++){
+                float x0 = x1;
+                float y0 = y1;
+                x1 = x0 + water_subdivision_distance;
+                y1 = water_height[i+1] + 0.02f*(sin(4.f*x1 - 3.f*t)  + sin(5.4235f*x1 + 3.f*t));
+                
+                Vec3 box[4] = {
+                    Vec3(x0, 1.f,               0.f),
+                    Vec3(x1, 1.f,               0.f),
+                    Vec3(x0, y0,   0.f),
+                    Vec3(x1, y1, 0.f),
+                };
+                *(vertices++) = {box[0], water_color};
+                *(vertices++) = {box[1], water_color};
+                *(vertices++) = {box[2], water_color};
+                *(vertices++) = {box[2], water_color};
+                *(vertices++) = {box[1], water_color};
+                *(vertices++) = {box[3], water_color};
             }
         }
         

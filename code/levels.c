@@ -48,14 +48,16 @@ LevelInfo all_levels[] = {
             "                 ",
             "                 ",
             "                 ",
-            "@               @",
-            "@@              @",
-            "@@              @",
-            "@@              @",
-            "@@     *   @#F#@@",
-            "@@@@@  @   @#F#@@",
+            "                 ",
+            "                 ",
+            "                 ",
+            "                 ",
+            "  @    *   @#F#@ ",
+            " @@@@      @#F#@@",
             "@@@@@@@@@@@@#F#@@",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -79,6 +81,8 @@ LevelInfo all_levels[] = {
             "#U###^UUUUUU#H#U#",
             "#############H###",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -99,6 +103,8 @@ LevelInfo all_levels[] = {
             "#>. U . # . # .<#",
             "##############H##",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -124,6 +130,8 @@ LevelInfo all_levels[] = {
             "#/^U^U##^U^U .G",
             "###############",
         },
+        // Exit side
+        SIDE_RIGHT,
     },
     {
         // Enemies
@@ -152,6 +160,8 @@ LevelInfo all_levels[] = {
             "J   #^^^#",
             "##H######",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -180,6 +190,8 @@ LevelInfo all_levels[] = {
             "JJ.....##",
             "######H##",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -206,6 +218,8 @@ LevelInfo all_levels[] = {
             "#^ . ^^^^^^^^^^^^#/^^]#",
             "###H###################",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -235,6 +249,8 @@ LevelInfo all_levels[] = {
             "#######^^^UUU^^UUU]#",
             "####################",
         },
+        // Exit side
+        SIDE_LEFT,
     },
     {
         // Enemies
@@ -264,6 +280,8 @@ LevelInfo all_levels[] = {
             "# ^^ . ^^ J",
             "#####H#####",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -286,6 +304,8 @@ LevelInfo all_levels[] = {
             "J..XXZZXXZZXXZZ  #",
             "##################",
         },
+        // Exit side
+        SIDE_LEFT,
     },
     {
         // Enemies
@@ -313,6 +333,8 @@ LevelInfo all_levels[] = {
             "#H#UUUUUUUUUUUUUUUUU#",
             "#H###################",
         },
+        // Exit side
+        SIDE_DOWN,
     },
     {
         // Enemies
@@ -322,7 +344,7 @@ LevelInfo all_levels[] = {
         // Size
         Vec2i(17, 6),
         // Start
-        Vec2(14.5f, 2.5f), Vec2(12.5f, 5.5f), 
+        Vec2(14.5f, 2.5f), Vec2(14.5f, 5.5f), 
         // Layout
         {
             "##############j##",
@@ -330,10 +352,11 @@ LevelInfo all_levels[] = {
             "#+..............#",
             "#               #",
             "#     ^       # #",
-            "##H#############",
+            "##H##############",
         },
+        // Exit side
+        SIDE_DOWN,
     },
-    
     {
         // Enemies
         ENEMY_INFO(1),
@@ -352,5 +375,7 @@ LevelInfo all_levels[] = {
             "# #             #",
             "##############H##",
         },
+        // Exit side
+        SIDE_DOWN,
     },
 };

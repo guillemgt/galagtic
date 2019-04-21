@@ -87,7 +87,12 @@ bool collision_with_right_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall
     int dist = max_x - min_x;
     if(dist == 0) dist = 1;
     
-    if(max_x >= level->width) max_x = level->width-1;
+    bool collides_with_side = false;
+    if(max_x >= level->width){
+        collides_with_side = !level->completed || level->exit_side != SIDE_RIGHT;
+        *wall_x = (float)level->width - player_size.x;
+        max_x = level->width-1;
+    }
     
     for(int x=min_x; x<=max_x; x++){
         float fy = lerp(old_tr.y, new_tr.y, (float)(x-min_x)/dist);
@@ -102,7 +107,7 @@ bool collision_with_right_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall
         }
     }
     
-    return false;
+    return collides_with_side;
 }
 bool collision_with_left_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall_x){
     Vec2 old_bl = round_sorta(old_r - player_size);
@@ -113,6 +118,13 @@ bool collision_with_left_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall_
     if(max_x < min_x) max_x = min_x;
     int dist = max_x - min_x;
     if(dist == 0) dist = 1;
+    
+    bool collides_with_side = false;
+    if(new_bl.x < 0){
+        collides_with_side = !level->completed || level->exit_side != SIDE_LEFT;
+        *wall_x = player_size.x;
+        min_x = 0;
+    }
     
     for(int x=max_x; x>=min_x; x--){
         float fy = lerp(old_bl.y, new_bl.y, (float)(max_x-x)/dist);
@@ -127,7 +139,7 @@ bool collision_with_left_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall_
         }
     }
     
-    return false;
+    return collides_with_side;
 }
 bool collision_with_bottom_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall_y){
     Vec2 old_bl = round_sorta(old_r - player_size);
@@ -138,6 +150,13 @@ bool collision_with_bottom_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wal
     if(max_y < min_y) max_y = min_y;
     int dist = max_y - min_y;
     if(dist == 0) dist = 1;
+    
+    bool collides_with_side = false;
+    if(new_bl.y < 0.f){
+        collides_with_side = !level->completed || level->exit_side != SIDE_DOWN;
+        *wall_y = player_size.y;
+        min_y = 0;
+    }
     
     for(int y=max_y; y>=min_y; y--){
         float fx = lerp(old_bl.x, new_bl.x, (float)(max_y-y)/dist);
@@ -152,7 +171,7 @@ bool collision_with_bottom_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wal
         }
     }
     
-    return false;
+    return collides_with_side;
 }
 bool collision_with_top_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall_y){
     Vec2 old_tr = round_sorta(old_r + player_size);
@@ -164,6 +183,13 @@ bool collision_with_top_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall_y
     int dist = max_y - min_y;
     if(dist == 0)
         dist = 1;
+    
+    bool collides_with_side = false;
+    if(max_y >= level->height){
+        collides_with_side = !level->completed || level->exit_side != SIDE_UP;
+        *wall_y = (float)level->height - player_size.y;
+        max_y = level->height-1;
+    }
     
     for(int y=min_y; y<=max_y; y++){
         float fx = lerp(old_tr.x, new_tr.y, (float)(y-min_y)/dist);
@@ -178,7 +204,7 @@ bool collision_with_top_tile(Level *level, Vec2 old_r, Vec2 new_r, float *wall_y
         }
     }
     
-    return false;
+    return collides_with_side;
 }
 
 void process_movement(GameState *game_state, u8 keys){
@@ -651,7 +677,7 @@ void process_movement(GameState *game_state, u8 keys){
             load_level(game_state, level->num+1);
             game_state->draw_new_level_time = game_state->time + game_state->render_lag_time;
         }*/
-        if(player->r.x < player_size.x || player->r.y < player_size.y || player->r.x >= (f32)level->width-player_size.x){
+        if(player->r.x < player_size.x || player->r.y < player_size.y || player->r.x > (f32)level->width-player_size.x+0.1f){
             if(game_state->is_in_real_game){
                 load_level(game_state, level->num+1);
                 game_state->draw_new_level_time = game_state->time + game_state->render_lag_time;
@@ -870,6 +896,28 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
     
     game_state->rendered_player = game_state->player_snapshots[game_state->last_rendered_snapshot];
     PlayerSnapshot drawn_player = game_state->rendered_player;
+    
+    // Splash!
+    float last_y = game_state->player_snapshots[(game_state->last_rendered_snapshot+MAX_UPS-1) % MAX_UPS].r.y;
+    if(game_state->level.num == 0 && drawn_player.r.x < 12.f && last_y > 1.55f+player_size.y && drawn_player.r.y < 1.55f+player_size.y){
+        auto &particles = game_state->particles;
+        int s = particles.size;
+        particles.size += 12*32;
+        assert(particles.size <= MAX_PARTICLES);
+        for(int px=-6; px<6; px++){
+            for(int py=-16; py<16; py++){
+                float angle = M_PI*rand()/RAND_MAX;
+                Vec2 speed = ((-0.2f*drawn_player.v.y + 3.f)*((f32)rand()/RAND_MAX))*Vec2(cosf(angle), sinf(angle));
+                particles[s++] = {Vec2(drawn_player.r.x+px/30.f, 1.8f), speed, water_color};
+            }
+        }
+        
+        float v = 0.1f*drawn_player.v.y;
+        int i = (int)(drawn_player.r.x*WATER_SUBDIVISIONS);
+        game_state->lagged_level.water_speed[i-1] = v;
+        game_state->lagged_level.water_speed[i+1] = v;
+        game_state->lagged_level.water_speed[i  ] = v;
+    }
     
     //if(drawn_player.level_time < TIME_STEP){
     //should_update_level = true;

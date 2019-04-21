@@ -123,13 +123,24 @@ struct Level {
     float time_to_load_next_level, time_to_load_next_level_max, time;
     Vec2 start_r, goal_r;
     bool state, completed;
-    int num;
+    int num, exit_side;
 };
+
+
+#define SIDE_UP    1
+#define SIDE_RIGHT 2
+#define SIDE_DOWN  3
+#define SIDE_LEFT  4
+
+#define WATER_SUBDIVISIONS 8
+#define WATER_MAX_X 12
+#define WATER_NODES (WATER_MAX_X*WATER_SUBDIVISIONS)
 struct LaggedLevel {
     Vec2 key_r;
     StaticArray<Vec2, MAX_PLATFORMS> platform_sizes;
     StaticArray<Gate, MAX_GATES>     gates;
     StaticArray<RetractableSpike, MAX_RETRACTABLE_SPIKES> retractable_spikes;
+    float water_height[WATER_MAX_X*WATER_SUBDIVISIONS], water_speed[WATER_MAX_X*WATER_SUBDIVISIONS];
 };
 
 
@@ -144,6 +155,7 @@ struct LevelInfo {
     Vec2i size;
     Vec2 start, start_first_time;
     char layout[max_level_width][max_level_height];
+    int exit_side;
 };
 extern LevelInfo all_levels[];
 

@@ -1,6 +1,6 @@
 @echo off
 set CC=emcc
-set SOURCES=..\code\main.cpp ..\code\basecode\os_wasm.cpp
+set SOURCES=..\code\main.cpp
 set ALL_FILES=..\code\* .\* ../run_tree\*
 set EXPORTS_FILE=makefile_exports.txt
 set INC_PATH=freetype_headers\

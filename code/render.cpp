@@ -18,7 +18,7 @@ void init_openGL(GameState *game_state){
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#if !OPENGL_ES
+#if !GGTP_OPENGL_ES
     glEnable(GL_ALPHA_TEST);
     glAlphaFunc(GL_GREATER, 0.02f);
     glEnable(GL_POLYGON_SMOOTH);
@@ -32,17 +32,17 @@ void init_openGL(GameState *game_state){
     GLObjects *gl = &game_state->gl_objects;
     // We read the wall shaders
     const char pca_shader_v[] =
-#if !OPENGL_ES
-#include "Shaders/pca_shader_v.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/pca_shader_v.glsl"
 #else
-#include "Shaders/pca_shader_v_es.glsl"
+#include "shaders/pca_shader_v_es.glsl"
 #endif
         ;
     const char pca_shader_f[] =
-#if !OPENGL_ES
-#include "Shaders/pca_shader_f.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/pca_shader_f.glsl"
 #else
-#include "Shaders/pca_shader_f_es.glsl"
+#include "shaders/pca_shader_f_es.glsl"
 #endif
         ;
     gl->pca_program.id = ggtgl_load_shaders_by_text(pca_shader_v, pca_shader_f);
@@ -51,17 +51,17 @@ void init_openGL(GameState *game_state){
     gl->pca_program.matrix   = glGetUniformLocation(gl->pca_program.id, "u_matrix");
     
     const char pt_shader_v[] =
-#if !OPENGL_ES
-#include "Shaders/pt_shader_v.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/pt_shader_v.glsl"
 #else
-#include "Shaders/pt_shader_v_es.glsl"
+#include "shaders/pt_shader_v_es.glsl"
 #endif
         ;
     const char pt_shader_f[] =
-#if !OPENGL_ES
-#include "Shaders/pt_shader_f.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/pt_shader_f.glsl"
 #else
-#include "Shaders/pt_shader_f_es.glsl"
+#include "shaders/pt_shader_f_es.glsl"
 #endif
         ;
     gl->pt_program.id = ggtgl_load_shaders_by_text(pt_shader_v, pt_shader_f);
@@ -72,17 +72,17 @@ void init_openGL(GameState *game_state){
     gl->pt_program.color_multiplier = glGetUniformLocation(gl->pt_program.id, "u_color_multiplier");
     
     const char pta_shader_v[] =
-#if !OPENGL_ES
-#include "Shaders/pta_shader_v.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/pta_shader_v.glsl"
 #else
-#include "Shaders/pta_shader_v_es.glsl"
+#include "shaders/pta_shader_v_es.glsl"
 #endif
         ;
     const char pta_shader_f[] =
-#if !OPENGL_ES
-#include "Shaders/pta_shader_f.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/pta_shader_f.glsl"
 #else
-#include "Shaders/pta_shader_f_es.glsl"
+#include "shaders/pta_shader_f_es.glsl"
 #endif
         ;
     gl->pta_program.id = ggtgl_load_shaders_by_text(pta_shader_v, pta_shader_f);
@@ -92,17 +92,17 @@ void init_openGL(GameState *game_state){
     gl->pta_program.sampler    = glGetUniformLocation(gl->pta_program.id, "u_sampler");
     
     const char ptca_shader_v[] =
-#if !OPENGL_ES
-#include "Shaders/ptca_shader_v.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/ptca_shader_v.glsl"
 #else
-#include "Shaders/ptca_shader_v_es.glsl"
+#include "shaders/ptca_shader_v_es.glsl"
 #endif
         ;
     const char ptca_shader_f[] =
-#if !OPENGL_ES
-#include "Shaders/ptca_shader_f.glsl"
+#if !GGTP_OPENGL_ES
+#include "shaders/ptca_shader_f.glsl"
 #else
-#include "Shaders/ptca_shader_f_es.glsl"
+#include "shaders/ptca_shader_f_es.glsl"
 #endif
         ;
     gl->ptca_program.id = ggtgl_load_shaders_by_text(ptca_shader_v, ptca_shader_f);
