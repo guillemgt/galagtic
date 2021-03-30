@@ -5,16 +5,18 @@ if not defined DevEnvDir (
 )
 
 set CommonCompilerFlags=-WL -O2 -nologo -fp:fast -fp:except- -Gm- -GR- -EHsc -Zo -Oi -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -FC -Z7 -GS- -Gs9999999 -DDEBUG_BUILD
+
 set CommonCompilerFlags=-D_CRT_SECURE_NO_WARNINGS=1 %CommonCompilerFlags%
 
 set ReleaseCompilerFlags=-WL -O2 -nologo -fp:fast -fp:except- -Gm- -GR- -EHsc -Zo -Oi -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -FC -GS- -Gs9999999 -O2
+
 set ReleaseCompilerFlags=-D_CRT_SECURE_NO_WARNINGS=1 %ReleaseCompilerFlags%
 
-set CommonLinkerFlags= -STACK:0x100000,0x100000 -incremental:no -opt:ref user32.lib gdi32.lib winmm.lib kernel32.lib
+set CommonLinkerFlags= -STACK:0x100000,0x100000 -incremental:no -opt:ref user32.lib gdi32.lib winmm.lib kernel32.lib dsound.lib opengl32.lib ../lag-windows.res
 
 mkdir lag-windows\build
 pushd lag-windows\build
-cl ..\..\code\main.cpp /Felag.exe %CommonCompilerFlags% /link opengl32.lib /SUBSYSTEM:WINDOWS %CommonLinkerFlags%
+cl ..\..\code\main.cpp /Felag.exe %ReleaseCompilerFlags% /link /SUBSYSTEM:WINDOWS %CommonLinkerFlags%
 
 mt.exe -manifest ../lag.exe.manifest -outputresource:lag.exe
 popd

@@ -9,13 +9,14 @@ void close_menu(GameState *game_state);
 
 void new_game(GameState *game_state, bool newer_game);
 void continue_game(GameState *game_state);
+void complete_game(GameState *game_state);
 void new_level_select_game(GameState *game_state, int num, bool newer_game);
 
 void save_game_into_crt(GameState *game_state);
 void save_game(GameState *game_state);
 void load_game(GameState *game_state);
 
-void draw_scene(GameState *game_state, bool should_draw_ui_and_player);
+void draw_scene(GameState *game_state, float time_step, bool should_draw_ui_and_player);
 
 const int GAME_MODE_PLAY  = 0;
 const int GAME_MODE_MENU  = 1;

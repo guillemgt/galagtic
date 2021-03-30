@@ -592,54 +592,54 @@ inline Mat4 get_perspective_matrix(const float half_pov, const float near_, cons
     float s = cosf(half_pov) / sinf(half_pov);
     float f = -far_/(far_-near_);
     return Mat4(
-        s, 0.f, 0.f, 0.f,
-        0.f,   s, 0.f, 0.f,
-        0.f, 0.f, f, f*near_,
-        0.f, 0.f,-1.f, 0.f
-        );
+                s, 0.f, 0.f, 0.f,
+                0.f,   s, 0.f, 0.f,
+                0.f, 0.f, f, f*near_,
+                0.f, 0.f,-1.f, 0.f
+                );
 }
 inline Mat4 get_translation_matrix(const Vec3 v){
     return Mat4(
-        1.f, 0.f, 0.f, v.x,
-        0.f, 1.f, 0.f, v.y,
-        0.f, 0.f, 1.f, v.z,
-        0.f, 0.f, 0.f, 1.f
-        );
+                1.f, 0.f, 0.f, v.x,
+                0.f, 1.f, 0.f, v.y,
+                0.f, 0.f, 1.f, v.z,
+                0.f, 0.f, 0.f, 1.f
+                );
 }
 inline Mat4 get_scale_matrix(const float x, const float y, const float z){
     return Mat4(
-        x, 0.f, 0.f, 0.f,
-        0.f,   y, 0.f, 0.f,
-        0.f, 0.f,   z, 0.f,
-        0.f, 0.f, 0.f, 1.f
-        );
+                x, 0.f, 0.f, 0.f,
+                0.f,   y, 0.f, 0.f,
+                0.f, 0.f,   z, 0.f,
+                0.f, 0.f, 0.f, 1.f
+                );
 }
 inline Mat4 get_rotation_matrix_x(const float angle){
     float c = cosf(angle), s = sinf(angle);
     return Mat4(
-        1.f, 0.f, 0.f, 0.f,
-        0.f, c,  -s,  0.f,
-        0.f, s,   c,   0.f,
-        0.f, 0.f, 0.f, 1.f
-        );
+                1.f, 0.f, 0.f, 0.f,
+                0.f, c,  -s,  0.f,
+                0.f, s,   c,   0.f,
+                0.f, 0.f, 0.f, 1.f
+                );
 }
 inline Mat4 get_rotation_matrix_y(const float angle){
     float c = cosf(angle), s = sinf(angle);
     return Mat4(
-        c,   0.f,-s,   0.f,
-        0.f, 1.f, 0.f, 0.f,
-        s,   0.f, c,   0.f,
-        0.f, 0.f, 0.f, 1.f
-        );
+                c,   0.f,-s,   0.f,
+                0.f, 1.f, 0.f, 0.f,
+                s,   0.f, c,   0.f,
+                0.f, 0.f, 0.f, 1.f
+                );
 }
 inline Mat4 get_rotation_matrix_z(const float angle){
     float c = cosf(angle), s = sinf(angle);
     return Mat4(
-        c,  -s,   0.f, 0.f,
-        s,   c,   0.f, 0.f,
-        0.f, 0.f, 1.f, 0.f,
-        0.f, 0.f, 0.f, 1.f
-        );
+                c,  -s,   0.f, 0.f,
+                s,   c,   0.f, 0.f,
+                0.f, 0.f, 1.f, 0.f,
+                0.f, 0.f, 0.f, 1.f
+                );
 }
 
 inline void print_matrix(const Mat4 m){

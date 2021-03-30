@@ -9,6 +9,7 @@ typedef enum {
     MS_LEVEL_SELECT  = 2,
     MS_SETTINGS      = 3,
     MS_SURE_NEW_GAME = 4,
+    MS_END           = 5,
 } MenuScreen;
 
 enum {
@@ -34,7 +35,13 @@ enum {
 };
 enum {
     MB_SETTINGS_SOUND,
+#if OS == OS_WASM
+    MB_SETTINGS_HIGHDPI,
+#endif
     MB_SETTINGS_BACK,
+};
+enum {
+    MB_END_BACK,
 };
 
 const int menu_total_screens = 5;
@@ -45,10 +52,14 @@ int menu_mousemove(GameState *game_state, Vec2 position);
 void process_menu(GameState *game_state);
 void draw_menu(GameState *game_state);
 
+void menu_load_level(GameState *game_state);
+
 const int menu_max_options = 6;
 
 #if OS_IS_DESKTOP
 const int menu_total_options[5] = {6, 4, 3, 2, 1};
+#elif OS == OS_WASM
+const int menu_total_options[5] = {5, 3, 3, 3, 1};
 #else
 const int menu_total_options[5] = {5, 3, 3, 2, 1};
 #endif
@@ -61,7 +72,16 @@ struct MenuInfo {
     float options_width[menu_max_options];
     
     float fade_alpha, fade_direction;
+    RgbColor fade_color;
+    
+    float end_timer;
+    
+    bool should_redraw_level;
 };
+
+
+int next_available_menu_option_after(MenuInfo *menu, int option);
+int strictly_next_available_menu_option_loop(MenuInfo *menu, int option, int step);
 
 
 #endif /* menu_hpp */

@@ -1,11 +1,14 @@
 #include <chrono>
 
 #define GGTP_PROGRAM_STATE GameState
-#define GGTP_USE_SDL
 #include "include/ggt_platform.h"
 
 #include "include/stb_image.h"
 #include "include/stb_truetype.h"
+#if OS == OS_WINDOWS
+#include "include/cute_sound.h"
+#endif
+
 #include "include/ggt_gl_utils.h"
 #include "include/ggt_math.h"
 #include "include/misc_tools.hpp"
@@ -13,25 +16,40 @@
 #include "basecode.hpp"
 
 
+#define MEASURE_TIME 0
+#define MEASURE_RENDER_TIME 0
+#define DEBUG_PAUSE 0
+
 
 #include "main.hpp"
 #include "render.hpp"
 #include "sound.hpp"
 #include "menu.hpp"
 
+
+
+#if SOUND_ENGINE == SOUND_ENGINE_CUTE
+#define CUTE_SOUND_IMPLEMENTATION
+#include "include/cute_sound.h"
+#endif
+
+
+#include "levels.c"
 #include "player.cpp"
 #include "render.cpp"
 #include "sound.cpp"
 #include "world.cpp"
 #include "menu.cpp"
 
-#define LAGGY 0
+#define LAGGY 1
 const float lag_time = 0.8f;
 
 GameState *global_game_state;
 
 Vec2i window_size; //TODO remove this
 float TIME_STEP;
+
+// * On the web version, if there is lag it does weird jumps!
 
 int ggtp_init(GameState *game_state){
 	TIME_STEP = 1.f / 60.f;
@@ -40,8 +58,12 @@ int ggtp_init(GameState *game_state){
     
     allocate_temporary_memory(KB(13990L));
     
-    if(ggtp_create_window(600, 600, "a laggy game") == GGT_FAILURE)
+    
+    float dpi_factor;
+    if(ggtp_create_window(600, 600, "lagoon moon base", &dpi_factor) == GGT_FAILURE){
+        printf("Error: Couldn't create window\n");
         return GGT_FAILURE;
+    }
     
     global_game_state = game_state;
     
@@ -57,15 +79,20 @@ int ggtp_init(GameState *game_state){
     game_state->time = 0.f;
     load_game(game_state);
     
+#if OS == OS_WASM
+    if(game_state->high_dpi_enabled) ggtp_toggle_dpi(1);
+#endif
+    
     // Set up the menu
     game_state->game_mode = GAME_MODE_MENU;
     MenuInfo *menu = &game_state->menu_info;
     menu->screen = MS_MAIN;
     menu->fade_alpha = -1.f;
     
+    game_state->ending_animation_info.started = false;
+    
     process_menu(game_state);
-    menu->selected_option = 0;
-    while(menu->disabled_options[menu->selected_option]) menu->selected_option++;
+    menu->selected_option = next_available_menu_option_after(menu, 0);
     
     return GGT_SUCCESS;
 }
@@ -92,6 +119,8 @@ void new_game(GameState *game_state, bool newer_game){
         game_state->render_lag_time = lag_time;
     }
 #endif
+    
+    game_state->ending_animation_info.started = false;
     
     load_level(game_state, 0);
     game_state->should_save_game = true;
@@ -123,6 +152,8 @@ void continue_game(GameState *game_state){
     }
 #endif
     
+    game_state->ending_animation_info.started = false;
+    
     load_level(game_state, crt->level_num);
     game_state->should_save_game = false;
     
@@ -135,7 +166,7 @@ void new_level_select_game(GameState *game_state, int num, bool newer_game){
     game_state->is_in_real_game = false;
     
     // New game
-    game_state->player_lives = 3;
+    game_state->player_lives = STARTING_LIVES;
     game_state->time = 0.f;
     game_state->time_started_counting = 0;
     
@@ -153,6 +184,8 @@ void new_level_select_game(GameState *game_state, int num, bool newer_game){
     }
 #endif
     
+    game_state->ending_animation_info.started = false;
+    
     load_level(game_state, num);
     
     init_messages(game_state);
@@ -160,7 +193,8 @@ void new_level_select_game(GameState *game_state, int num, bool newer_game){
     game_state->draw_new_level_time = -1.f;
 }
 
-void complete_game(GameState *game_state){
+void complete_game(GameState *game_state){ // Called in player.cpp through a sound message
+    // Record highscores
     GameStats *stats = &game_state->stats;
     
     float time = game_state->time - game_state->time_started_counting;
@@ -171,15 +205,30 @@ void complete_game(GameState *game_state){
         stats->best_time =  MIN(stats->best_time,  time);
         stats->best_lives = MAX(stats->best_lives, game_state->player_lives);
     }
-    game_state->current_run_data.game_started = false;
     
-    game_state->draw_new_level_time = -1.f;
+    // Put info in EndingAnimationInfo
+    EndingAnimationInfo *eai = &game_state->ending_animation_info;
+    eai->menu_animation_time = 0.f;
+    eai->time = time;
+    eai->deaths = STARTING_LIVES - game_state->player_lives;
+    eai->started = true;
+    
+    // Load end animation
+    //game_state->game_mode = GAME_MODE_MENU;
+    game_state->menu_info.screen = MS_END;
+    game_state->menu_info.selected_option = 0;
+    game_state->menu_info.fade_alpha = 0.f;
+    game_state->menu_info.fade_direction = 0.15f;
+    game_state->menu_info.fade_color.r = 255;
+    game_state->menu_info.fade_color.g = 255;
+    game_state->menu_info.fade_color.b = 255;
+    
+    // Reset game
+    game_state->current_run_data.game_started = false;
+    save_game(game_state);
 }
 
 extern f32 TIME_STEP;
-
-#define MEASURE_TIME 1
-#define DEBUG_PAUSE 1
 
 #if MEASURE_TIME
 static double logic_time = 0., drawing_time = 0.;
@@ -189,15 +238,18 @@ static int actionsThisSecond = 0;
 void open_menu(GameState *game_state){
     game_state->game_mode = GAME_MODE_MENU;
     game_state->menu_info.screen = MS_INGAME;
-    game_state->menu_info.selected_option = 0;
-    while(game_state->menu_info.disabled_options[game_state->menu_info.selected_option]) game_state->menu_info.selected_option++;
+    game_state->menu_info.selected_option = next_available_menu_option_after(&game_state->menu_info, 0);
+    stop_sound(&game_state->sound, SOUND_MACHINE);
 }
 void close_menu(GameState *game_state){
     game_state->game_mode = GAME_MODE_PLAY;
+    if(game_state->level.num == LAST_LEVEL){
+        stop_sound(&game_state->sound, SOUND_MACHINE); // Otherwise it can play twice if we are loading the level at the same time!
+        play_sound(&game_state->sound, SOUND_MACHINE);
+    }
 }
 
-extern BufferAndCount picture_buffer;
-int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_events events){
+int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggtp_mouse mouse, ggt_platform_events events){
     global_game_state = game_state;
 #if MEASURE_TIME
     auto lastFrame = std::chrono::high_resolution_clock::now();
@@ -206,6 +258,8 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
     reset_temporary_memory();
     
     bool was_in_play_mode = game_state->game_mode == GAME_MODE_PLAY;
+    
+    static bool space_down = false;
     
     for(uint i=0; i<events.size; i++){
         switch(events.data[i].type){
@@ -219,14 +273,25 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
                 return GGT_FAILURE;
             } break;
             case GGTP_EVENT_KEY_DOWN: {
+#if DEBUG_BUILD
+                if(events.data[i].info.key == 'C'){
+                    game_state->stats.best_time      = 1234.56f;
+                    game_state->stats.best_time_plus = 99991234.56f;
+                    game_state->stats.best_lives      = -1234;
+                    game_state->stats.best_lives_plus = -1234;
+                    game_state->stats.unlocked_levels      = ArraySize(all_levels);
+                    game_state->stats.unlocked_levels_plus = ArraySize(all_levels);
+                }
+#endif
                 if(game_state->game_mode == GAME_MODE_PLAY){
-					if(events.data[i].info.key == GGTP_KEY_ESC){
+					if(events.data[i].info.key == GGTP_KEY_ESC && !game_state->ending_animation_info.started){
                         if(game_state->is_in_real_game)
                             save_game_into_crt(game_state);
                         open_menu(game_state);
                     }
                 }else{
-                    if(!menu_keydown(game_state, events.data[i].info.key))
+                    if(events.data[i].info.key != GGTP_KEY_SPACE || !space_down)
+                        if(!menu_keydown(game_state, events.data[i].info.key))
                         return GGT_FAILURE;
                 }
             } break;
@@ -249,6 +314,13 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
             default: break;
         }
     }
+    
+    if(keys[GGTP_KEY_SPACE]){
+        space_down = true;
+    }else{
+        space_down = false;
+    }
+    
     
     u8 current_keys = 0;
 #if DEBUG_BUILD
@@ -285,10 +357,10 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
     }
 #endif
     if(game_state->game_mode == GAME_MODE_PLAY){
-        static auto last_actions_time = std::chrono::high_resolution_clock::now();
-        auto this_actions_time = std::chrono::high_resolution_clock::now();
+        static clock_t last_actions_time = clock();
+        clock_t this_actions_time = clock();
         static double time_since_last_action = 0.f;
-        time_since_last_action += ((std::chrono::duration<double, std::milli>)(this_actions_time-last_actions_time)).count()*0.001;
+        time_since_last_action += (double)(this_actions_time-last_actions_time) / CLOCKS_PER_SEC;
         if(!game_state->was_in_play_mode){
             time_since_last_action = TIME_STEP;
         }
@@ -303,7 +375,7 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
                 float time;
                 u8 keys;
             };
-            const int slots = 100;
+            const int slots = 120;
             static FrameKeyInfo frame_keys[slots] = {{-1.f, 0}};
             
             if(last_keys != current_keys){
@@ -361,8 +433,21 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
             actionsThisSecond++;
 #endif
             
-            if(game_state->menu_info.fade_alpha >= 0.f){
-                game_state->menu_info.fade_alpha -= fade_speed*TIME_STEP;
+            if(game_state->menu_info.screen == MS_END){
+                game_state->gl_objects.screen_translate.x = (0.2f + game_state->menu_info.fade_alpha) * (0.5f - (float)rand() / RAND_MAX) + (-0.5f*game_state->gl_objects.shown_level_size.x);
+                game_state->gl_objects.screen_translate.y = (0.2f + game_state->menu_info.fade_alpha) * (0.5f - (float)rand() / RAND_MAX) + (-0.5f*game_state->gl_objects.shown_level_size.y);
+                if(game_state->menu_info.fade_alpha >= 1.f){
+                    game_state->game_mode = GAME_MODE_MENU;
+                    game_state->menu_info.fade_alpha = -1.f;
+                }
+            }else if(game_state->menu_info.screen == MS_LEVEL_SELECT && game_state->menu_info.fade_alpha >= 1.f){
+                game_state->game_mode = GAME_MODE_MENU;
+                game_state->menu_info.screen = MS_LEVEL_SELECT;
+                game_state->menu_info.selected_option = 0;
+                game_state->particles.size = 0;
+                game_state->menu_info.fade_alpha = 1.f;
+                game_state->menu_info.fade_direction = -1.f;
+                menu_load_level(game_state);
             }
         }
         game_state->player_interpolation_factor = (f32)(time_since_last_action / TIME_STEP); // We render 1 frame behind... I guess it doesn't matter...
@@ -381,8 +466,9 @@ int ggtp_loop(GameState *game_state, ggt_u8 keys[GGTP_TOTAL_KEYS], ggt_platform_
 #endif
     }
     
-#if OS != OS_IOS && OS != OS_WASM
-    catalog_update();
+    
+#if SOUND_ENGINE == SOUND_ENGINE_CUTE
+    process_sound(game_state);
 #endif
     
     game_state->was_in_play_mode = was_in_play_mode; 
@@ -416,10 +502,17 @@ void ggtp_draw(GameState *game_state){
     }
 #endif
     
+    static clock_t last_frame = clock();
+    clock_t this_frame = clock();
+    float time_step = (float)(this_frame - last_frame)/CLOCKS_PER_SEC;
+    last_frame = this_frame;
+    
     if(game_state->game_mode == GAME_MODE_PLAY){
-        draw_scene(game_state, true);
+        game_state->gl_objects.viewport_offset.x = 0;
+        game_state->gl_objects.viewport_offset.y = 0;
+        draw_scene(game_state, time_step, true);
     }else{
-        draw_menu(game_state);
+        draw_menu(game_state, time_step);
     }
     
 #if MEASURE_TIME
@@ -431,7 +524,7 @@ void cleanup_game(){
     
 }
 
-void draw_scene(GameState *game_state, bool should_draw_ui_and_player){
+void draw_scene(GameState *game_state, float time_step, bool should_draw_ui_and_player){
     bool should_redraw_level = false;
     
     if(game_state->draw_new_level_time < game_state->time){
@@ -446,7 +539,8 @@ void draw_scene(GameState *game_state, bool should_draw_ui_and_player){
             game_state->gl_objects.drawn_level_state = game_state->draw_new_state_state[i];
         }
     }
-    draw_scene(game_state, should_redraw_level, should_draw_ui_and_player);
+    
+    draw_scene(game_state, time_step, should_redraw_level, should_draw_ui_and_player);
 }
 
 extern "C" {
@@ -469,10 +563,30 @@ void save_game_into_crt(GameState *game_state){
     crt->game_started = true;
 }
 
+#if OS == OS_WASM
+
+extern "C" {
+    extern void setCookie(const char *name, const char *value);
+    extern char *getCookie(const char *name);
+}
+
+#define fwrite(ptr, size, q, fp) \
+for(int i=0; i<size*q; i++){ \
+    fp[fpp++] = 'A' + ((((u8 *)ptr)[i] >> 0) & 0x0f); \
+    fp[fpp++] = 'A' + ((((u8 *)ptr)[i] >> 4) & 0x0f); \
+}
+#define fread(ptr, size, q, fp) \
+for(int i=0; i<size*q; i++){ \
+    ((u8 *)ptr)[i] = fp[fpp++] - 'A'; \
+    ((u8 *)ptr)[i] |= (fp[fpp++] - 'A') << 4; \
+}
+
+#endif
+
 void save_game(GameState *game_state){
-    if(!game_state->is_in_real_game)
-        return;
+    if(game_state->game_mode == GAME_MODE_PLAY && game_state->is_in_real_game && game_state->current_run_data.game_started) save_game_into_crt(game_state); // If this is in the real game (and before the ending, put all the current game data into the crt struct
     
+#if OS != OS_WASM
     char path[MAX_PATH_LENGTH];
     ggtp_user_file_path("save", path);
     
@@ -481,8 +595,20 @@ void save_game(GameState *game_state){
         printf("Error: Couldn't write save file\n");
         return;
     }
+#else
+    char fp[1024];
+    int fpp = 0;
+#endif
     
-    save_game_into_crt(game_state);
+#define SAVECHECK 1234
+    int savecheck = SAVECHECK;
+    
+    fwrite(&savecheck, sizeof(int), 1, fp);
+    
+    fwrite(&game_state->sound.on, sizeof(bool), 1, fp);
+#if OS == OS_WASM
+    fwrite(&game_state->high_dpi_enabled, sizeof(bool), 1, fp);
+#endif
     
     fwrite(&game_state->stats, sizeof(GameStats), 1, fp);
     i8 level;
@@ -498,46 +624,103 @@ void save_game(GameState *game_state){
         level = -1;
         fwrite(&level, sizeof(i8), 1, fp);
     }
+    
+    fwrite(&savecheck, sizeof(int), 1, fp);
+    
+#if OS != OS_WASM
     fclose(fp);
+#else
+    fp[fpp] = 0;
+    setCookie("lmb-save", fp);
+#endif
 }
+
+void reset_save(GameState *game_state){
+    game_state->stats.best_time            = INFINITY;
+    game_state->stats.best_time_plus       = INFINITY;
+    game_state->stats.best_lives           = INT_MIN;
+    game_state->stats.best_lives_plus      = INT_MIN;
+    game_state->stats.unlocked_levels      = 0;
+    game_state->stats.unlocked_levels_plus = 0;
+    game_state->current_run_data.game_started = false;
+    game_state->sound.on = true;
+#if OS == OS_WASM
+    game_state->high_dpi_enabled = true;
+#endif
+}
+
 void load_game(GameState *game_state){
+#if OS != OS_WASM
     char path[MAX_PATH_LENGTH];
     ggtp_user_file_path("save", path);
     FILE *fp = fopen(path, "rb");
     if(fp == nullptr){
-        game_state->stats.best_time       = INFINITY;
-        game_state->stats.best_time_plus  = INFINITY;
-        game_state->stats.best_lives      = INT_MIN;
-        game_state->stats.best_lives_plus = INT_MIN;
-        game_state->stats.unlocked_levels = 0;
-        game_state->current_run_data.game_started = false;
-        return;
+#else
+        int fpp = 0;
+        char *fp = getCookie("lmb-save");
+        if(fp[0] == 0 || strcmp(fp, "(null)") == 0){
+#endif
+            reset_save(game_state);
+            return;
+        }
+        
+        int savecheck;
+        fread(&savecheck, sizeof(int), 1, fp);
+        if(savecheck != SAVECHECK){
+            reset_save(game_state);
+            return;
+        }
+        
+        
+        
+        fread(&game_state->sound.on, sizeof(bool), 1, fp);
+#if OS == OS_WASM
+        fread(&game_state->high_dpi_enabled, sizeof(bool), 1, fp);
+#endif
+        
+        fread(&game_state->stats, sizeof(GameStats), 1, fp);
+        i8 level;
+        fread(&level, sizeof(i8), 1, fp);
+        
+        CurrentRunData *crt = &game_state->current_run_data;
+        if(level >= 0){
+            crt->level_num = level;
+            crt->game_started = true;
+            fread(&crt->time, sizeof(crt->time), 1, fp);
+            fread(&crt->time_started_counting, sizeof(crt->time_started_counting), 1, fp);
+            fread(&crt->player_lives, sizeof(crt->player_lives), 1, fp);
+            fread(&crt->space_lagged, sizeof(crt->space_lagged), 1, fp);
+        }else
+            crt->game_started = false;
+        
+        
+        fread(&savecheck, sizeof(int), 1, fp);
+        if(savecheck != SAVECHECK || (crt->game_started && (crt->level_num < 0 || crt->level_num > LAST_LEVEL))){
+            reset_save(game_state);
+            return;
+        }
+        
+#if OS != OS_WASM
+        fclose(fp);
+#else
+        free(fp);
+#endif
     }
-    fread(&game_state->stats, sizeof(GameStats), 1, fp);
-    i8 level;
-    fread(&level, sizeof(i8), 1, fp);
     
-    CurrentRunData *crt = &game_state->current_run_data;
-    if(level >= 0){
-        crt->level_num = level;
-        crt->game_started = true;
-        fread(&crt->time, sizeof(crt->time), 1, fp);
-        fread(&crt->time_started_counting, sizeof(crt->time_started_counting), 1, fp);
-        fread(&crt->player_lives, sizeof(crt->player_lives), 1, fp);
-        fread(&crt->space_lagged, sizeof(crt->space_lagged), 1, fp);
-    }else
-        crt->game_started = false;
     
-    fclose(fp);
-}
-
-//#ifndef __EMSCRIPTEN__
+#if OS == OS_WASM
+#undef fwrite
+#undef fread
+#endif
+    
+    
+    //#ifndef __EMSCRIPTEN__
 #define STB_IMAGE_IMPLEMENTATION
 #include "include/stb_image.h"
-//#endif
+    //#endif
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "include/stb_truetype.h"
-
+    
 #define GGT_PLATFORM_IMPLEMENTATION
 #include "include/ggt_platform.h"
 #define GGT_GL_IMPLEMENTATION

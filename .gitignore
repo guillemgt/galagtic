@@ -9,3 +9,4 @@ lag-wasm/before.sh
 */.DS_Store
 */save
 */stb_*
+.vs

@@ -22,7 +22,7 @@ const RgbaColor basic_color = {35, 35, 35, 255};
 const RgbaColor water_color = {230, 255, 255, 140};
 
 const int max_level_width  = 30;
-const int max_level_height = 25;
+const int max_level_height = 26;
 const int max_levels = 25;
 
 const float time_after_flag_is_down = 0.5f;
@@ -32,9 +32,10 @@ const RgbaColor level_color = {200, 200, 200, 255};
 extern u16  block_info[256];
 
 void load_world(GameState *game_state);
-void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer);
-void load_changing_level_into_buffer(Level *level, BufferAndCount *buffer);
-void load_goal_into_buffer(GameState *game_state, BufferAndCount *buffer);
+//void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer);
+//void load_changing_level_into_buffer(Level *level, BufferAndCount *buffer);
+void load_level_into_buffer(GameState *game_state, BufferAndCount *buffer, BufferAndCount *changing_buffer_0, BufferAndCount *changing_buffer_1);
+void load_dynamic_level_parts_into_buffer(GameState *game_state, BufferAndCount *buffer, float time_step);
 void load_planet_background(Level *level, BufferAndCount *buffer);
 
 void load_level(GameState *game_state, int num);

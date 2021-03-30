@@ -3,21 +3,25 @@
 #include "world.hpp"
 #include "main.hpp"
 #include "sound.hpp"
+#include "menu.hpp"
 
 // Lateral movement
 const float player_walk_speed = 10.f;
 const float player_walk_acceleration = 5.f*60.f;
 const float player_air_acceleration = 3.f*60.f;
 // Jump
-const float gravity = -40.f;
-const float player_jump_speed = 9.6f;
+#define GRAVITY (-30.f)
+const float gravity_down = 2.f*GRAVITY;
+const float gravity_up = 1.8f*GRAVITY;
+const float gravity_jump = 1.f*GRAVITY;
+const float player_jump_speed = 12.6f;
 const float player_max_speed_down = -12.f;
-const float jump_button_until_height = 1.5f;
 // Wall jump
 const float player_max_speed_down_while_sticking_to_wall = -4.f;
 const float time_sticking_to_wall = 8.f/60.f;
 const float wall_jump_speed_x = 10.f;
 const float after_wall_jump_acceleration = 0.2f*60.f;
+const float max_time_since_last_wall_jump = 1.3f;
 
 const float falling_things_speed = -0.5f;
 //const Vec2 player_size = Vec2(0.15625f, 0.390625f);
@@ -42,6 +46,7 @@ inline Vec3 sfloor(Vec3 v){
 
 
 void init_messages(GameState *game_state){
+    // Remove all messages
     for(int i=0; i<MAX_UPS; i++){
         game_state->particle_messages[i].time = INFINITY;
         game_state->sound_messages[i].time = INFINITY;
@@ -52,6 +57,22 @@ void init_messages(GameState *game_state){
     
     game_state->next_free_snapshot = 0;
     game_state->last_rendered_snapshot = 0;
+    
+    game_state->next_free_particle_slot = 0;
+    game_state->last_read_particle_slot = 0;
+    game_state->next_free_sound_slot = 0;
+    game_state->last_read_sound_slot = 0;
+    
+    // Fill first snapshots so that we don't have an awkward pause in the beginning
+    float t = game_state->time;
+    game_state->time -= game_state->render_lag_time;
+    
+    if(game_state->level.num == LAST_LEVEL) add_sound_message(game_state, SOUND_MACHINE);
+    
+    while(game_state->time < t){
+        process_movement(game_state, 0);
+        game_state->time += TIME_STEP;
+    }
 }
 void add_particle_message(GameState *game_state, Vec2 r, Vec2 v, bool is_death){
     int next_free_slot = game_state->next_free_particle_slot;
@@ -216,12 +237,16 @@ void process_movement(GameState *game_state, u8 keys){
     if(player->flags & PM_DISABLED)
         keys = 0;
     
+    bool player_is_in_gate;
+    {
+        int x = (int)player->r.x, y = (int)player->r.y;
+        player_is_in_gate = (level->layout[x][y] == 'J' || level->layout[x][y] == 'j' || level->layout[x][y] == 'k');
+    }
+    
     bool moving = false;
     if(keys & frame_key_left){
         player->flags |= PM_LOOKING_LEFT;
-        if(player->flags & PM_WALL_JUMPING_LEFT){
-            player->v.x -= after_wall_jump_acceleration*TIME_STEP;
-        }else if(player->flags & PM_STICKING_TO_WALL_RIGHT){
+        if(player->flags & PM_STICKING_TO_WALL_RIGHT){
             player->time_to_unstick -= TIME_STEP;
             if(player->time_to_unstick < 0)
                 player->flags &= ~PM_STICKING_TO_WALL;
@@ -233,7 +258,7 @@ void process_movement(GameState *game_state, u8 keys){
             if(player->v.x > 0.f) player->v.x = 0.f;
             player->v.x -= player_walk_acceleration*TIME_STEP;
         }else{
-            player->v.x -= player_air_acceleration*TIME_STEP;
+            player->v.x -= player->time_since_wall_jump*player_air_acceleration*TIME_STEP;
         }
         if(player->v.x < -player_walk_speed)
             player->v.x = -player_walk_speed;
@@ -245,9 +270,7 @@ void process_movement(GameState *game_state, u8 keys){
     
     if(keys & frame_key_right){
         player->flags &= ~PM_LOOKING_LEFT;
-        if(player->flags & PM_WALL_JUMPING_RIGHT){
-            player->v.x += after_wall_jump_acceleration*TIME_STEP;
-        }else if(player->flags & PM_STICKING_TO_WALL_LEFT){
+        if(player->flags & PM_STICKING_TO_WALL_LEFT){
             player->time_to_unstick -= TIME_STEP;
             if(player->time_to_unstick < 0)
                 player->flags &= ~PM_STICKING_TO_WALL;
@@ -259,7 +282,7 @@ void process_movement(GameState *game_state, u8 keys){
             if(player->v.x < 0.f) player->v.x = 0.f;
             player->v.x += player_walk_acceleration*TIME_STEP;
         }else{
-            player->v.x += player_air_acceleration*TIME_STEP;
+            player->v.x += player->time_since_wall_jump*player_air_acceleration*TIME_STEP;
         }
         if(player->v.x > player_walk_speed)
             player->v.x = player_walk_speed;
@@ -272,23 +295,12 @@ void process_movement(GameState *game_state, u8 keys){
     if(!moving){
         if(player->flags & PM_ON_GROUND)
             player->v.x *= 0.1f;
-        else if(player->flags & PM_WALL_JUMPING)
-            player->v.x *= 0.96f;
         else if(!(player->flags & PM_STICKING_TO_WALL))
-            player->v.x *= 0.6f;
+            player->v.x *= 1.f - 0.4f*player->time_since_wall_jump;
     }
     
-    //static bool space_was_up = false;
-    //static float last_frames_gravity = 0.f;
-    
-    if(player->jump_height >= 0.f && player->jump_height < jump_button_until_height){
-        if(keys & frame_key_jump){
-            player->v.y -= gravity*TIME_STEP; // TODO: Do this properly
-            player->jump_height += player->v.y*TIME_STEP;
-        }else{
-            player->jump_height = -1.f;
-            player->gravity_extra = 0.5f * gravity * (jump_button_until_height - player->jump_height) / jump_button_until_height;
-        }
+    if(player->time_since_wall_jump < 1.f){
+        player->time_since_wall_jump += TIME_STEP/max_time_since_last_wall_jump;
     }
     
     if(keys & frame_key_jump){
@@ -301,13 +313,12 @@ void process_movement(GameState *game_state, u8 keys){
                 jumped = true;
                 player->v.x = -wall_jump_speed_x;
                 player->v.y = player_jump_speed;
-                player->flags |= PM_WALL_JUMPING_RIGHT;
             }else if(player->flags & PM_STICKING_TO_WALL_LEFT){
                 jumped = true;
                 player->v.x = wall_jump_speed_x;
                 player->v.y = player_jump_speed;
-                player->flags |= PM_WALL_JUMPING_LEFT;
             }
+            player->time_since_wall_jump = 0.f;
         }
         if(jumped){
             if(player->at_platform >= 0){
@@ -421,15 +432,17 @@ void process_movement(GameState *game_state, u8 keys){
         // Detect and respond to collisions with the level
         float wall_x;
         if(v.x < 0.f && collision_with_left_tile(level, old_r, r, &wall_x)){
+            if(r.x > player_size.x)
+                player->flags |= PM_PUSHES_TILE_LEFT;
             r.x = wall_x;
             v.x = 0.f;
-            player->flags |= PM_PUSHES_TILE_LEFT;
         }else
             player->flags &= ~PM_PUSHES_TILE_LEFT;
         if(v.x > 0.f && collision_with_right_tile(level, old_r, r, &wall_x)){
             if(old_r.x <= wall_x){
+                if(r.x < (float)level->width - player_size.x)
+                    player->flags |= PM_PUSHES_TILE_RIGHT;
                 r.x = wall_x;
-                player->flags |= PM_PUSHES_TILE_RIGHT;
             }
             v.x = 0.f;
         }else
@@ -472,14 +485,15 @@ void process_movement(GameState *game_state, u8 keys){
     if(((player->flags & PM_PUSHES_RIGHT) && (player->flags & PM_PUSHES_LEFT)) || ((player->flags & PM_PUSHES_LEFT) && (player->flags & PM_PUSHES_RIGHT)) || ((player->flags & PM_PUSHES_TOP) && (player->flags & PM_PUSHES_BOTTOM)) || ((player->flags & PM_PUSHES_BOTTOM) && (player->flags & PM_PUSHES_TOP)))
         kill = true;
     
+    u32 was_sticking_to_wall = player->flags & PM_STICKING_TO_WALL;
+    
     player->flags &= ~PM_STICKING_TO_WALL;
-    if(!(player->flags & PM_ON_GROUND)){
+    if(!(player->flags & PM_ON_GROUND) && !player_is_in_gate){
         if(player->flags & PM_PUSHES_LEFT)
             player->flags |= PM_STICKING_TO_WALL_LEFT;
         if(player->flags & PM_PUSHES_RIGHT)
             player->flags |= PM_STICKING_TO_WALL_RIGHT;
     }
-    Vec2 pr = player->r;
     
     if(player->flags & PM_STICKING_TO_WALL_RIGHT){
         player->flags |= PM_LOOKING_LEFT;
@@ -487,25 +501,40 @@ void process_movement(GameState *game_state, u8 keys){
     if(player->flags & PM_STICKING_TO_WALL_LEFT){
         player->flags &= ~PM_LOOKING_LEFT;
     }
+    if(was_sticking_to_wall && !(player->flags & PM_STICKING_TO_WALL)){
+        player->r.x -= player->v.x * TIME_STEP + (was_sticking_to_wall & PM_STICKING_TO_WALL_LEFT ? -0.01f : 0.01f);
+        player->v.x = 0.f;
+    }
     
-    //printf("(3) %g %g; %g %g\n", player.r.x, player.r.y, player.v.x, player.v.y);
-    /*if(player.on_ground)
-        player.sticking_to_wall = 0;
-    if(player.sticking_to_wall == 1 && player.v.x < 0.f && player.at_platform < 0)
-        player.sticking_to_wall = 0;
-    if(player.sticking_to_wall == 2 && player.v.x > 0.f && player.at_platform < 0)
-        player.sticking_to_wall = 0;*/
+    Vec2 pr = player->r;
+    
+    bool do_platform_sound[2] = {false, false};
     
     for(int k=0; k<(int)platforms.size; k++){
         Vec2 nv = normalize(platforms[k].v);
-        int x = (int)floorf(platforms[k].r.x + nv.x*platforms[k].size.x);
-        int y = (int)floorf(platforms[k].r.y + nv.y*platforms[k].size.y);
+        float vx = nv.x*platforms[k].size.x;
+        float vy = nv.y*platforms[k].size.y;
+        int x = (int)(platforms[k].r.x + vx);
+        int y = (int)(platforms[k].r.y + vy);
         if(block_info[level->layout[x][y]] & BLOCK_STOPS_PLATFORMS){
+            if(nv.x > 0.f){
+                platforms[k].r.x = 2.f*x - platforms[k].r.x - 2.f*vx;
+            }else if(nv.x < 0.f){
+                platforms[k].r.x = 2.f*x + 2.f - platforms[k].r.x - 2.f*vx;
+            }
+            if(nv.y > 0.f){
+                platforms[k].r.y = 2.f*y - platforms[k].r.y - 2.f*vy;
+            }else if(nv.y < 0.f){
+                platforms[k].r.y = 2.f*y + 2.f - platforms[k].r.y - 2.f*vy;
+            }
+            
             platforms[k].v = -platforms[k].v;
-            if(level->layout[x][y] == '#')
-                add_sound_message(game_state, platforms[k].v > 0.f ? SOUND_TICK_0 : SOUND_TICK_1);
+            do_platform_sound[platforms[k].v > 0.f ? 0 : 1] = true;
         }
     }
+    
+    if(do_platform_sound[0]) add_sound_message(game_state, SOUND_TICK_0);
+    if(do_platform_sound[1]) add_sound_message(game_state, SOUND_TICK_1);
     
     /*if((player->flags & PM_STICKING_TO_WALL) && player->at_platform >= 0){
         if(abs(player->r.y) > player_size.y+platforms[player->at_platform].size.y){
@@ -526,7 +555,13 @@ void process_movement(GameState *game_state, u8 keys){
     if(player->flags & PM_PUSHES_BOTTOM || player->v.y <= 0.f)
         player->gravity_extra = 0.f;
     
-    player->v.y += (gravity + player->gravity_extra)*TIME_STEP;
+    if(player->v.y <= 0.f){
+        player->v.y += gravity_down*TIME_STEP;
+    }else if(keys & frame_key_jump){
+        player->v.y += gravity_jump*TIME_STEP;
+    }else{
+        player->v.y += gravity_up*TIME_STEP;
+    }
     
     if(player->flags & PM_STICKING_TO_WALL){
         if(player->v.y < player_max_speed_down_while_sticking_to_wall)
@@ -534,9 +569,6 @@ void process_movement(GameState *game_state, u8 keys){
     }else{
         if(player->v.y < player_max_speed_down)
             player->v.y = player_max_speed_down;
-    }
-    if(player->v.y <= 0.f){
-        player->flags &= ~PM_WALL_JUMPING;
     }
     
     for(uint k=0; k<enemies.size; k++){
@@ -554,7 +586,7 @@ void process_movement(GameState *game_state, u8 keys){
         int low_y = (int)floor(f_low_y);
         float f_high_y = pr.y+player_box_size.y;
         int high_y = (int)sfloor(f_high_y);
-        for(int x=low_x; x<=high_x; x++){
+        for(int x=low_x; x<=high_x && x < level->width; x++){
             for(int y=low_y; y<=high_y; y++){
                 char block = level->layout[x][y];
                 if(block == 'j' || block == 'J')
@@ -672,18 +704,27 @@ void process_movement(GameState *game_state, u8 keys){
     }
     
     if(level->completed){
-        /*level->time_to_load_next_level -= TIME_STEP;
-        if(level->time_to_load_next_level < 0.f){
-            load_level(game_state, level->num+1);
-            game_state->draw_new_level_time = game_state->time + game_state->render_lag_time;
-        }*/
         if(player->r.x < player_size.x || player->r.y < player_size.y || player->r.x > (f32)level->width-player_size.x+0.1f){
             if(game_state->is_in_real_game){
+                // If we didn't come by "Level select", load next level
                 load_level(game_state, level->num+1);
                 game_state->draw_new_level_time = game_state->time + game_state->render_lag_time;
+                if(game_state->level.num == LAST_LEVEL) add_sound_message(game_state, SOUND_MACHINE);
+                game_state->should_save_game = true;
+            }else{
+                // If we did come to the level via "Level select", go back to the menu
+                // As with completing the game, we do this via the highpitch sound
+                add_sound_message(game_state, SOUND_HIGHPITCH);
             }
         }
     }
+    
+    // Check if the player completed the last level
+    if(level->num == LAST_LEVEL && player->r.x > 20.f-player_size.x && player->r.x < 23.f+player_size.y && player->r.y + player_size.y > 16.5f){
+        // Complete the game. To do this, we use the high pitch sound
+        add_sound_message(game_state, SOUND_HIGHPITCH);
+    }
+    
     
     // Record all the information for later rendering
     game_state->player_snapshots[game_state->next_free_snapshot] = {player->r, player->v, game_state->time + game_state->render_lag_time, player->flags};
@@ -697,6 +738,86 @@ void process_movement(GameState *game_state, u8 keys){
     game_state->next_free_snapshot = (game_state->next_free_snapshot+1) % MAX_UPS;
     
     process_messages(game_state);
+    
+    
+    // Also check things from lag_time ago, for e.g. closig gates, etc.
+    const int snapshots_behind = MAX_UPS - (int)roundf(game_state->render_lag_time / TIME_STEP) -1;
+    PlayerSnapshot ps = game_state->player_snapshots[(game_state->next_free_snapshot + snapshots_behind) % MAX_UPS];
+    if(ps.time < INFINITY){
+        // Close gates
+        LaggedLevel *ll = &game_state->lagged_level;
+        for(uint k=0; k<ll->gates.size; k++){
+            Gate *g = &ll->gates[k];
+            Vec2 dr = ps.r - g->r - Vec2(0.5f);
+            bool visited_now = (fabs(dr.x) < 0.5f+player_size.x && fabs(dr.y) < 0.5f+player_size.y);
+            if(visited_now)
+                g->flags |= GF_VISITED;
+            if(g->flags & GF_VISITED && g->flags & GF_IMMORTAL && !visited_now){
+                if(g->state <= 0.f && level->num > 0){
+                    play_sound(&game_state->sound, SOUND_SLIDE);
+                    g->state = 0.01f;
+                }
+            }
+        }
+        
+        
+        // Splash!
+        if(game_state->level.num == 0 && ps.r.x < 12.f){
+            float last_y = game_state->player_snapshots[(game_state->next_free_snapshot + snapshots_behind-1) % MAX_UPS].r.y;
+            float was_in_water = last_y <= 1.55f+player_size.y;
+            float  is_in_water = ps.r.y <  1.55f+player_size.y;
+            
+            int effect = -1;
+            if(!was_in_water && is_in_water){
+                auto &particles = game_state->particles;
+                int s = particles.size;
+                particles.size += 12*10;
+                assert(particles.size <= MAX_PARTICLES);
+                for(int px=-6; px<6; px++){
+                    for(int py=-10; py<0; py++){
+                        float angle = M_PI*rand()/RAND_MAX;
+                        Vec2 speed = ((-0.2f*ps.v.y + 4.f)*((f32)rand()/RAND_MAX))*Vec2(cosf(angle), sinf(angle));
+                        particles[s++] = {Vec2(ps.r.x+px/30.f, 1.8f+py/64.f), speed, water_color};
+                    }
+                }
+                effect = 0;
+            }else if(was_in_water && !is_in_water){
+                effect = 0;
+            }else if(is_in_water && ps.v.x != 0.f){
+                effect = 1;
+            }
+            
+            if(effect >= 0){
+                is_in_water = false;
+                int i = (int)(ps.r.x*WATER_SUBDIVISIONS);
+                if(i >= 0 && i < WATER_NODES_0){
+                    if(i == 0) i = 1;
+                    if(i == WATER_NODES_0-1) i = WATER_NODES_0-2;
+                    is_in_water = true;
+                }else{
+                    i -= WATER_SKIP;
+                    if(i >= WATER_NODES_0 && i < WATER_NODES_1){
+                        if(i == WATER_NODES_0) i = WATER_NODES_0+1;
+                        if(i == WATER_NODES_1-1) i = WATER_NODES_1-2;
+                        is_in_water = true;
+                    }
+                }
+                
+                if(is_in_water){
+                    if(effect == 0){
+                        float v = 0.1f*ps.v.y;
+                        
+                        game_state->lagged_level.water_speed[i-1] = v;
+                        game_state->lagged_level.water_speed[i  ] = v;
+                        game_state->lagged_level.water_speed[i+1] = v;
+                    }else if(effect == 1){
+                        float v = 0.05f * ps.v.x;
+                        game_state->lagged_level.water_speed[i] = -abs(v);
+                    }
+                }
+            }
+        }
+    }
 }
 
 void add_snapshot(GameState *game_state){
@@ -717,9 +838,22 @@ void add_snapshot(GameState *game_state){
     for(int k=0; k<(int)platforms.size; k++){
         platforms[k].r += TIME_STEP*platforms[k].v;
         Vec2 nv = normalize(platforms[k].v);
-        int x = (int)floorf(platforms[k].r.x + nv.x*platforms[k].size.x);
-        int y = (int)floorf(platforms[k].r.y + nv.y*platforms[k].size.y);
+        float vx = nv.x*platforms[k].size.x;
+        float vy = nv.y*platforms[k].size.y;
+        int x = (int)(platforms[k].r.x + vx);
+        int y = (int)(platforms[k].r.y + vy);
         if(block_info[level->layout[x][y]] & BLOCK_STOPS_PLATFORMS){
+            if(nv.x > 0.f){
+                platforms[k].r.x = 2.f*x - platforms[k].r.x - 2.f*vx;
+            }else if(nv.x < 0.f){
+                platforms[k].r.x = 2.f*x + 2.f - platforms[k].r.x - 2.f*vx;
+            }
+            if(nv.y > 0.f){
+                platforms[k].r.y = 2.f*y - platforms[k].r.y - 2.f*vy;
+            }else if(nv.y < 0.f){
+                platforms[k].r.y = 2.f*y + 2.f - platforms[k].r.y - 2.f*vy;
+            }
+            
             platforms[k].v = -platforms[k].v;
         }
     }
@@ -795,8 +929,6 @@ void reset_player(LevelInfo *level_info, Player *player, Level *level){
     }
     level->state = 0;
     level->completed = false;
-    level->time_to_load_next_level = level->time_to_load_next_level_max;
-    //player.cancel_next_level_in = -1.f;
     
     //level->enemies.size = level_enemies[level->num].size;
     for(uint i=0; i<level->enemies.size; i++)
@@ -811,9 +943,29 @@ void process_messages(GameState *game_state){
     float time = game_state->time;
     { // Sound
         while(game_state->sound_messages[game_state->last_read_sound_slot].time < time){
-            if(game_state->level.num > 0)
-                play_sound(&game_state->sound, game_state->sound_messages[game_state->last_read_sound_slot].sound);
-            game_state->last_read_sound_slot= (game_state->last_read_sound_slot+1) % MAX_UPS;
+            if(game_state->level.num > 0){
+                u8 sound = game_state->sound_messages[game_state->last_read_sound_slot].sound;
+                if(sound != SOUND_HIGHPITCH){
+                    play_sound(&game_state->sound, sound);
+                }else{
+                    if(game_state->is_in_real_game){
+                        if(!game_state->ending_animation_info.started){
+                            stop_sound(&game_state->sound, SOUND_MACHINE);
+                            play_sound(&game_state->sound, SOUND_HIGHPITCH);
+                            complete_game(game_state);
+                        }
+                    }else if(game_state->menu_info.fade_alpha <= 0.f){
+                        game_state->menu_info.screen = MS_LEVEL_SELECT;
+                        game_state->menu_info.selected_option = 0;
+                        game_state->menu_info.fade_alpha = 0.f;
+                        game_state->menu_info.fade_direction = 1.f;
+                        game_state->menu_info.fade_color.r = 0;
+                        game_state->menu_info.fade_color.g = 0;
+                        game_state->menu_info.fade_color.b = 0;
+                    }
+                }
+            }
+            game_state->last_read_sound_slot = (game_state->last_read_sound_slot+1) % MAX_UPS;
         }
     }
     
@@ -825,7 +977,6 @@ void process_messages(GameState *game_state){
             float fx = message.r.x;
             float fy = message.r.y;
             Vec2 v = message.v;
-            
             if(message.is_death){
                 int s = particles.size;
                 particles.size += 12*32;
@@ -834,7 +985,7 @@ void process_messages(GameState *game_state){
                     for(int py=-16; py<16; py++){
                         float angle = 2.f*M_PI*rand()/RAND_MAX;
                         Vec2 speed = 0.1f*v + (1.f + 6.f*rand()/RAND_MAX)*Vec2(cosf(angle), sinf(angle));
-                        particles[s++] = {Vec2(fx+px/30.f, fy+py/30.f), speed, {60, 60, 60, 255}};
+                        particles[s++] = {Vec2(fx+px/30.f, fy+py/30.f), speed, basic_color};
                     }
                 }
                 
@@ -867,15 +1018,19 @@ void process_messages(GameState *game_state){
                 }
             }
         }
+        
+        LaggedLevel *ll = &game_state->lagged_level;
         for(int i=particles.size-1; i>=0; i--){
             Particle *particle = &particles[i];
-            if(particle->r.y < 0.2f || particle->r.x < 0.2f || particle->r.x > level_size.x-0.2f){
+            
+            particle->r += particle->v*TIME_STEP;
+            particle->v.y += 0.5f*gravity_down*TIME_STEP;
+            
+            
+            if(particle->r.y < 0.f || particle->r.x < 0.2f || particle->r.x > ll->width-0.2f){
                 particles.remove(i);
                 continue;
             }
-            
-            particle->r += particle->v*TIME_STEP;
-            particle->v.y += 0.5f*gravity*TIME_STEP;
         }
     }
     
@@ -890,34 +1045,12 @@ void find_snapshot_to_render(GameState *game_state){
     game_state->last_rendered_snapshot = (next_candidate + MAX_UPS - 1) % MAX_UPS;
 }
 
-void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
+void load_player_into_buffer(GameState *game_state, float time_step, BufferAndCount *buffer){
     Vertex_PT o_vertices[12];
     Vertex_PT *vertices = o_vertices;
     
     game_state->rendered_player = game_state->player_snapshots[game_state->last_rendered_snapshot];
     PlayerSnapshot drawn_player = game_state->rendered_player;
-    
-    // Splash!
-    float last_y = game_state->player_snapshots[(game_state->last_rendered_snapshot+MAX_UPS-1) % MAX_UPS].r.y;
-    if(game_state->level.num == 0 && drawn_player.r.x < 12.f && last_y > 1.55f+player_size.y && drawn_player.r.y < 1.55f+player_size.y){
-        auto &particles = game_state->particles;
-        int s = particles.size;
-        particles.size += 12*32;
-        assert(particles.size <= MAX_PARTICLES);
-        for(int px=-6; px<6; px++){
-            for(int py=-16; py<16; py++){
-                float angle = M_PI*rand()/RAND_MAX;
-                Vec2 speed = ((-0.2f*drawn_player.v.y + 3.f)*((f32)rand()/RAND_MAX))*Vec2(cosf(angle), sinf(angle));
-                particles[s++] = {Vec2(drawn_player.r.x+px/30.f, 1.8f), speed, water_color};
-            }
-        }
-        
-        float v = 0.1f*drawn_player.v.y;
-        int i = (int)(drawn_player.r.x*WATER_SUBDIVISIONS);
-        game_state->lagged_level.water_speed[i-1] = v;
-        game_state->lagged_level.water_speed[i+1] = v;
-        game_state->lagged_level.water_speed[i  ] = v;
-    }
     
     //if(drawn_player.level_time < TIME_STEP){
     //should_update_level = true;
@@ -937,12 +1070,13 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
         current_frame_x = 1;
     }else if(!(drawn_player.flags & PM_ON_GROUND)){
         if(current_frame_y != 3){
-            pri->time_in_current_frame = 0;
+            pri->time_in_current_frame = 0.f;
             current_frame_y = 3;
+            current_frame_x = 0;
         }
-        pri->time_in_current_frame++;
-        if(pri->time_in_current_frame >= 4){
-            pri->time_in_current_frame = 0;
+        pri->time_in_current_frame += time_step;
+        if(pri->time_in_current_frame >= 4.f/60.f){
+            pri->time_in_current_frame = 0.f;
             current_frame_x++;
             if(current_frame_x >= 5){
                 current_frame_x = 4;
@@ -950,18 +1084,18 @@ void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer){
         }
     }else if(fabs(drawn_player.v.x) > 0.1f){
         if(current_frame_y != 1 && current_frame_y != 2){
-            pri->time_in_current_frame = 0;
+            pri->time_in_current_frame = 0.f;
             current_frame_y = 1;
         }
-        pri->time_in_current_frame++;
-        if(pri->time_in_current_frame >= 3){
-            pri->time_in_current_frame = 0;
+        pri->time_in_current_frame += time_step;
+        if(pri->time_in_current_frame >= 3.f/60.f){
+            pri->time_in_current_frame = 0.f;
             current_frame_x++;
             if(current_frame_x >= 6){
                 current_frame_x = 0;
                 current_frame_y = 3-current_frame_y;
             }
-            if(current_frame_x == 1)
+            if(current_frame_x == 1 && game_state->lagged_level.num > 0)
                 play_sound(&game_state->sound, current_frame_y == 6 ? SOUND_WALK_0 : SOUND_WALK_1);
         }
     }else{

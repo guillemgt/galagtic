@@ -5,6 +5,8 @@
 #include "include/ggt_gl_utils.h"
 #include "include/misc_tools.hpp"
 
+#define CLAMP(t, a, b) (t < a ? a : t > b ? b : t)
+
 extern Vec2 level_size;
 const float screen_portion_of_ui_bottom = 0.f;
 const float screen_portion_of_ui_top    = 0.07f;
@@ -55,7 +57,7 @@ struct GLObjects {
     
     struct {
         GLuint id;
-        GLuint position, tex_coords, matrix, sampler, color_multiplier;
+        GLuint position, tex_coords, matrix, sampler;
     } pt_program;
     
     struct {
@@ -98,19 +100,35 @@ struct GLObjects {
     GLuint buttons_vao;
 #endif
     
+    GLuint main_texture, planet_texture;
+    
+    GLuint multisampled_fbo, resolved_fbo;
+    GLuint depth_rbo;
+    
     Vec2 screen_ratio;
     Vec2 screen_translate;
     Vec2 shown_level_size;
     
     Vec2 screen_size;
     Vec2 actual_screen_size;
+    Vec2i framebuffer_size;
+    Vec2i viewport_offset;
     float actual_screen_ratio;
     
     int drawn_level_state;
 };
 
 void init_openGL(GameState *game_state);
-void draw_scene(GameState *game_state, bool should_redraw_level, bool draw_ui_and_player);
+void draw_scene(GameState *game_state, float time_step, bool should_redraw_level, bool draw_ui_and_player);
 void change_window_size(GameState *game_state, Vec2 size);
 
+
+#define MAX_RESOLUTION_X 1920.f
+#define MAX_RESOLUTION_Y 1080.f
+#define MAX_RESOLUTION_ROUNDED_X 2048
+#define MAX_RESOLUTION_ROUNDED_Y 2048
+
+#if MEASURE_RENDER_TIME
+void print_render_time();
+#endif
 #endif /* render_hpp */

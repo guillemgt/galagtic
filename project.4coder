@@ -31,7 +31,7 @@ command_list = {
   },
   { .name = "run",
 	.out = "*run*", .footer_panel = true, .save_any_dirty_files = false, .cursor_at_end = true,
-	.cmd = { { "start /D run_tree\\ lag-windows\\build\\lag.exe", .os = "win" }, },
+	.cmd = { { "chdir run_tree & ..\\lag-windows\\build\\lag.exe", .os = "win" }, },
   },
 };
 

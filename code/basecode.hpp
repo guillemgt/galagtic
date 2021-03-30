@@ -53,12 +53,18 @@ struct GameState {
     
     SoundInfo sound;
     
+    EndingAnimationInfo ending_animation_info;
+    
     // Game state
     int game_mode;
     
     bool was_in_play_mode = false;
     bool should_save_game, space_lagged;
     bool is_in_real_game; // ie not in level select mode
+    
+#if OS == OS_WASM
+    bool high_dpi_enabled;
+#endif
 };
 
 #endif

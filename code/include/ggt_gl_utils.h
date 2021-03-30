@@ -24,7 +24,9 @@
 void _ggtgl_check_error(int line, const char *file);
 
 void _ggtgl_set_buffer_data(GLuint buffer, void *vert, unsigned int size, GLuint mode);
+void _ggtgl_set_buffer_subdata(GLuint buffer, void *vert, unsigned int offset, unsigned int size);
 #define ggtgl_set_buffer_data(b, v, s, t) _ggtgl_set_buffer_data(b, v, s*sizeof(v[0]), t)
+#define ggtgl_set_buffer_subdata(b, v, o, s) _ggtgl_set_buffer_subdata(b, v, o*sizeof(v[0]), s*sizeof(v[0]))
 
 GLuint ggtgl_load_shaders(const char *file_path);
 GLuint ggtgl_load_shaders_by_text(const char *vertex_text, const char *fragment_text);
@@ -87,6 +89,10 @@ void _ggtgl_check_error(int line, const char *file){
 void _ggtgl_set_buffer_data(GLuint buffer, void *vert, unsigned int size, GLuint mode){
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
     glBufferData(GL_ARRAY_BUFFER, size, vert, mode);
+}
+void _ggtgl_set_buffer_subdata(GLuint buffer, void *vert, unsigned int offset, unsigned int size){
+    glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    glBufferSubData(GL_ARRAY_BUFFER, offset, size, vert);
 }
 
 #ifndef GGTGL_MAX_INFO_LOG_LENGTH

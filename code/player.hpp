@@ -4,11 +4,13 @@
 #include <time.h>
 #include "render.hpp"
 
+#define STARTING_LIVES 3
+
 struct Player {
     Vec2 r, v;
     u32 flags;
     int at_platform;
-    float jump_height, time_to_unstick, gravity_extra;
+    float jump_height, time_to_unstick, time_since_wall_jump, gravity_extra;
     
     bool space_was_up = false;
 };
@@ -20,7 +22,7 @@ struct PlayerSnapshot {
 
 struct GameStats {
     float best_time, best_time_plus;
-    int best_lives, best_lives_plus, unlocked_levels;
+    int best_lives, best_lives_plus, unlocked_levels, unlocked_levels_plus;
 };
 struct CurrentRunData {
     int level_num, player_lives;
@@ -86,7 +88,7 @@ const float load_next_level_in_max = 1.5f;
 const Vec2 enemies_speed = Vec2(-2.f, 0.f);
 
 struct Platform {
-    Vec2 r, size, v;
+    Vec2 r, v, size;
 };
 
 struct Particle {
@@ -120,7 +122,7 @@ struct Level {
     char layout[max_level_width][max_level_height];
     StaticArray<Vec2, MAX_ENEMIES> enemies;
     StaticArray<Platform, MAX_PLATFORMS> platforms;
-    float time_to_load_next_level, time_to_load_next_level_max, time;
+    float time;
     Vec2 start_r, goal_r;
     bool state, completed;
     int num, exit_side;
@@ -133,14 +135,23 @@ struct Level {
 #define SIDE_LEFT  4
 
 #define WATER_SUBDIVISIONS 8
-#define WATER_MAX_X 12
-#define WATER_NODES (WATER_MAX_X*WATER_SUBDIVISIONS)
+#define WATER_MIN_X_0 0
+#define WATER_MAX_X_0 2
+#define WATER_MIN_X_1 4
+#define WATER_MAX_X_1 11
+#define WATER_SDX_0 (WATER_MAX_X_0 - WATER_MIN_X_0)
+#define WATER_SDX_1 (WATER_MAX_X_1 - WATER_MIN_X_1 + WATER_SDX_0)
+#define WATER_NODES_0 (WATER_SDX_0*WATER_SUBDIVISIONS + 1)
+#define WATER_NODES_1 (WATER_SDX_1*WATER_SUBDIVISIONS + 2)
+#define WATER_SKIP ((WATER_MIN_X_1 - WATER_MAX_X_0) * WATER_SUBDIVISIONS - 2)
 struct LaggedLevel {
+    float width, height;
+    int num;
     Vec2 key_r;
     StaticArray<Vec2, MAX_PLATFORMS> platform_sizes;
     StaticArray<Gate, MAX_GATES>     gates;
     StaticArray<RetractableSpike, MAX_RETRACTABLE_SPIKES> retractable_spikes;
-    float water_height[WATER_MAX_X*WATER_SUBDIVISIONS], water_speed[WATER_MAX_X*WATER_SUBDIVISIONS];
+    float water_height[WATER_NODES_1], water_speed[WATER_NODES_1];
 };
 
 
@@ -151,7 +162,7 @@ struct PlatformInfo {
 
 struct LevelInfo {
     StaticArray<Vec2, MAX_ENEMIES>           enemies;
-    StaticArray<PlatformInfo, MAX_PLATFORMS> platforms;
+    StaticArray<Platform, MAX_PLATFORMS> platforms;
     Vec2i size;
     Vec2 start, start_first_time;
     char layout[max_level_width][max_level_height];
@@ -165,19 +176,27 @@ void change_level_state(Level *level);
 bool change_level_state_and_return_if_changed(Level *level);
 void reset_player(LevelInfo *level_info, Player *player, Level *level);
 
-void load_player_into_buffer(GameState *game_state, BufferAndCount *buffer);
+void load_player_into_buffer(GameState *game_state, float time_step, BufferAndCount *buffer);
 void load_particles_into_buffer(GameState *game_state, BufferAndCount *buffer);
 
 void process_movement(GameState *game_state, u8 keys);
 void init_messages(GameState *game_state);
 void process_messages(GameState *game_state);
+void add_sound_message(GameState *game_state, u8 sound);
 
 void find_snapshot_to_render(GameState *game_state);
 
 struct PlayerRenderingInfo {
     int current_frame_x = 0;
     int current_frame_y = 0;
-    int time_in_current_frame = 0;
+    float time_in_current_frame = 0;
+};
+
+struct EndingAnimationInfo {
+    float menu_animation_time;
+    float time;
+    int deaths;
+    bool started;
 };
 
 #endif /* player_hpp */

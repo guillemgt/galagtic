@@ -417,7 +417,6 @@ int load_font_into_texture(const char *path, GLenum target){
     free(ttf_buffer);
     
     glActiveTexture(target);
-	printf("%p\n", glGenTextures);
     glGenTextures(1, &ftex);
     glBindTexture(GL_TEXTURE_2D, ftex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, 0, GL_ALPHA, GL_UNSIGNED_BYTE, temp_bitmap);
